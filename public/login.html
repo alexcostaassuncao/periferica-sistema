@@ -3,50 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Periférica · Entrar</title>
+<title>Entrar • Periférica</title>
+<link rel="icon" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css"><link rel="icon" href="favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-  body{min-height:100vh;display:grid;place-items:center;padding:24px 16px;
-    background:radial-gradient(900px 500px at 100% 0%,rgba(255,88,11,.22),transparent 60%),radial-gradient(700px 500px at 0% 100%,rgba(255,88,11,.12),transparent 60%),var(--bg)}
-  .box{width:min(420px,100%)}
-  .brand{font-family:"Oswald",sans-serif;font-weight:600;font-size:34px;text-align:center;margin-bottom:6px}
-  .bar-o{width:44px;height:3px;background:var(--orange);margin:0 auto 26px;border-radius:2px}
-  .card{padding:28px}
-  h1{font-size:22px;font-weight:800;margin-bottom:4px}
-  .stack{gap:16px;margin-top:20px}
-  .err{color:#ff7d93;font-size:13px;min-height:18px}
-  .btn{width:100%;padding:12px}
+:root{--orange:#ff580b;--text:#fff;--muted:#8a8a8a}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;display:flex;font-family:"Inter",ui-sans-serif,system-ui,sans-serif;background:#000;color:var(--text)}
+.showcase{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#000;border-right:1px solid #ffffff0d;padding:32px}
+.showcase img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.1;transform:scale(1.5);pointer-events:none}
+.showcase h2{position:relative;margin:0;font-size:clamp(40px,4.6vw,64px);font-weight:900;text-transform:uppercase;letter-spacing:-.05em;line-height:1}
+.showcase p{position:absolute;bottom:32px;left:0;right:0;text-align:center;margin:0;color:#ffffff59;font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase}
+.accent{color:var(--orange)}
+.panel{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 24px;background:#151515}
+.card{width:min(380px,100%)}
+.brand{text-align:center;margin-bottom:32px}
+.brand img{height:44px;max-width:100%;object-fit:contain;margin-bottom:24px}
+h1{font-size:24px;font-weight:900;margin:0;text-transform:uppercase;letter-spacing:-.03em}
+.brand p{margin:8px 0 0;color:var(--muted);font-size:13px;font-weight:600;line-height:1.5}
+label{display:block;margin-bottom:14px;font-size:10px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
+input{font:inherit;display:block;width:100%;margin-top:6px;background:#000;border:1px solid #ffffff1a;border-radius:3px;padding:13px 18px;color:#fff;font-size:14px;font-weight:700;letter-spacing:normal;text-transform:none}
+input:focus{border-color:var(--orange);outline:none}
+button{font:inherit}
+.btn{width:100%;border:0;border-radius:3px;padding:16px;background:var(--orange);color:#fff;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.16em;cursor:pointer;box-shadow:0 12px 30px #ff580b33;margin-top:10px}
+.btn:hover{opacity:.92}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible,.link:focus-visible{outline:3px solid #ff854b;outline-offset:2px}
+.link{display:block;margin:18px auto 0;background:none;border:0;color:var(--muted);font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:#fff}
+.forgot{display:flex;justify-content:flex-end;margin:-6px 0 6px}
+.forgot .link{margin:0;font-size:12px;text-decoration:none;color:var(--orange)}
+.forgot .link:hover{text-decoration:underline}
+.msg{font-size:13px;font-weight:700;text-align:center;min-height:20px;margin:16px 0 0;line-height:1.5}
+.msg.err{color:#f87171}
+.msg.ok{color:#4ade80}
+@media(max-width:900px){.showcase{display:none}.panel{background:#111}}
 </style>
 </head>
 <body>
-<div class="box">
-  <div class="brand">PERIFÉRICA</div><div class="bar-o"></div>
-  <form class="card" id="f">
-    <h1>Entrar no sistema</h1>
-    <p class="muted small">Use o email e a senha cadastrados pela direção.</p>
-    <div class="stack">
-      <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="username" required></label>
-      <label class="field"><span>Senha</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>
-      <div class="err" id="err" role="alert"></div>
-      <button class="btn btn-primary" id="go">Entrar</button>
+<section class="showcase" aria-hidden="true">
+  <img src="brand/simbolo-periferica.png" alt="">
+  <h2>Peri<span class="accent">férica</span></h2>
+</section>
+<section class="panel">
+<main class="card">
+  <!-- Entrar -->
+  <div id="loginView">
+    <div class="brand">
+      <img src="brand/logo-periferica.png" alt="Periférica">
+      <h1>Entrar</h1>
+      <p>Use o email e a senha do seu cadastro.</p>
     </div>
-  </form>
-</div>
+    <form id="loginForm">
+      <label>Email<input id="email" type="email" autocomplete="username" required autofocus></label>
+      <label>Senha<input id="password" type="password" autocomplete="current-password" required maxlength="128"></label>
+      <div class="forgot"><button type="button" class="link" id="toForgot">Esqueci minha senha</button></div>
+      <button class="btn" id="submit" type="submit">Entrar</button>
+      <p class="msg err" id="error" role="alert"></p>
+    </form>
+  </div>
+
+  <!-- Esqueci minha senha -->
+  <div id="forgotView" hidden>
+    <div class="brand">
+      <img src="brand/logo-periferica.png" alt="Periférica">
+      <h1>Redefinir senha</h1>
+      <p>Digite o email do seu cadastro. Vamos enviar um link para você criar uma nova senha.</p>
+    </div>
+    <form id="forgotForm">
+      <label>Email<input id="femail" type="email" autocomplete="username" required></label>
+      <button class="btn" id="fsubmit" type="submit">Enviar link</button>
+      <p class="msg" id="fmsg" role="status"></p>
+      <button type="button" class="link" id="toLogin">Voltar para o login</button>
+    </form>
+  </div>
+</main>
+</section>
 <script>
-document.getElementById('f').onsubmit=async e=>{
-  e.preventDefault();const b=document.getElementById('go'),err=document.getElementById('err');
-  b.disabled=true;err.textContent='';
+if(window.top!==window){try{window.top.location.replace(location.href);}catch{}}
+const $=id=>document.getElementById(id);
+function destination(){const next=new URLSearchParams(location.search).get('next')||'/inicio.html';return next.startsWith('/')&&!next.startsWith('//')&&!next.startsWith('/login.html')?next:'/inicio.html';}
+
+$('toForgot').onclick=()=>{$('loginView').hidden=true;$('forgotView').hidden=false;$('femail').value=$('email').value;$('femail').focus();};
+$('toLogin').onclick=()=>{$('forgotView').hidden=true;$('loginView').hidden=false;$('fmsg').textContent='';$('email').focus();};
+
+$('loginForm').onsubmit=async e=>{
+  e.preventDefault();const b=$('submit');$('error').textContent='';b.disabled=true;b.textContent='Entrando…';
   try{
-    const fd=new FormData(e.target);
-    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(fd))});
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(d.error||'Não foi possível entrar.');
-    const next=new URLSearchParams(location.search).get('next')||'/inicio.html';
-    location.href=next.startsWith('/')&&!next.startsWith('//')?next:'/inicio.html';
-  }catch(x){err.textContent=x.message;b.disabled=false;}
+    location.replace(destination());
+  }catch(err){$('error').textContent=err.message;b.disabled=false;b.textContent='Entrar';}
+};
+
+$('forgotForm').onsubmit=async e=>{
+  e.preventDefault();const b=$('fsubmit'),m=$('fmsg');m.textContent='';m.className='msg';b.disabled=true;b.textContent='Enviando…';
+  try{
+    const r=await fetch('/api/auth/forgot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('femail').value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Não foi possível enviar agora.');
+    m.className='msg ok';m.textContent=d.message;b.textContent='Link enviado';
+  }catch(err){m.className='msg err';m.textContent=err.message;b.disabled=false;b.textContent='Enviar link';}
 };
 </script>
+<script src="js/password-eye.js"></script>
 </body>
 </html>

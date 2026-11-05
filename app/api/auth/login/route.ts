@@ -18,7 +18,8 @@ export async function POST(req:Request){
     const admin=envAdmin();
     const row:any=await database().prepare('SELECT id,password_hash FROM users WHERE email=?').bind(email).first();
     let token:string|null=null;
-    if(admin&&email===admin.email&&password===admin.password)token=await signSession({uid:'admin',m:'env',pv:await envAdminVersion()});
+    // Depois que o administrador redefine a senha, vale a do banco (a da Vercel deixa de valer).
+    if(admin&&email===admin.email&&!row?.password_hash&&password===admin.password)token=await signSession({uid:'admin',m:'env',pv:await envAdminVersion()});
     else if(row?.password_hash&&await verifyPassword(password,row.password_hash))token=await signSession({uid:row.id,m:'db',pv:await passwordVersion(row.password_hash)});
     if(!token){
       await fail(key);
