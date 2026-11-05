@@ -12,6 +12,8 @@ export const AREA_KEYS=AREAS.map(a=>a[0]) as string[];
 
 export const PROFILES:Record<string,string[]>={
   'Administrador':AREA_KEYS,
+  // Desenvolvedor: vê todas as telas e cuida das sugestões do modo desenvolvedor.
+  'Desenvolvedor':AREA_KEYS,
   'Comercial':['comercial','contratos','clientes','agenda'],
   'Consultora':['clientes','onboarding','gestao','revisao','publicacoes','agenda'],
   'Copy':['copy','agenda'],
@@ -41,3 +43,8 @@ export function cleanAreas(v:unknown){
   const list=Array.isArray(v)?v:[];
   return [...new Set(list.filter((a):a is string=>typeof a==='string'&&AREA_KEYS.includes(a)))];
 }
+
+// Perfis que podem usar o modo desenvolvedor (enviar e gerenciar sugestões).
+export const DEV_PROFILES=['Administrador','Desenvolvedor'];
+// Perfis que só um administrador pode dar a alguém.
+export const PROTECTED_PROFILES=['Administrador','Desenvolvedor'];

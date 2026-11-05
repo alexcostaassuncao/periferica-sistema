@@ -1,6 +1,6 @@
 import {database} from '../../../db/raw';
 import {canAccess,currentUser,envAdmin,hashPassword,sameOrigin} from '../../../lib/auth';
-import {AREAS,PROFILES,cleanAreas} from '../../../lib/access';
+import {AREAS,PROFILES,PROTECTED_PROFILES,cleanAreas} from '../../../lib/access';
 import {sha256} from '../../../lib/session';
 import {mailReady,sendMail} from '../../../lib/mail';
 import {siteOrigin} from '../../../db/social';
@@ -47,7 +47,7 @@ export async function POST(req:Request){
   const access=Object.keys(PROFILES).includes(p.access)?p.access:'Personalizado';
   if(name.length<2)return json({error:'Informe o nome.'},400);
   if(!emailOk(email))return json({error:'Informe um email válido.'},400);
-  if(access==='Administrador'&&!me.admin)return json({error:'Só um administrador pode criar outro administrador.'},403);
+  if(PROTECTED_PROFILES.includes(access)&&!me.admin)return json({error:'Só um administrador pode criar um '+access.toLowerCase()+'.'},403);
   const password=String(p.password||'');
   if(password&&(password.length<8||password.length>128))return json({error:'A senha inicial precisa ter pelo menos 8 caracteres.'},400);
   if(!password&&!p.invite)return json({error:'Defina uma senha inicial ou marque "Enviar convite por email".'},400);
@@ -68,7 +68,7 @@ export async function PATCH(req:Request){
   const db=database();
   const user:any=await db.prepare('SELECT id,name,email,access FROM users WHERE id=?').bind(p.id).first();
   if(!user)return json({error:'Usuário não encontrado. O administrador da Vercel é alterado só nas variáveis da Vercel.'},404);
-  if(user.access==='Administrador'&&!me.admin)return json({error:'Só um administrador pode alterar outro administrador.'},403);
+  if(PROTECTED_PROFILES.includes(user.access)&&!me.admin)return json({error:'Só um administrador pode alterar este usuário.'},403);
   if(p.action==='invite'){
     const ok=await invite(user.id,user.name,user.email);
     return ok?json({ok:true}):json({error:mailReady()?'Não foi possível enviar o email agora.':'O envio de emails ainda não foi configurado na Vercel.'},502);
@@ -78,7 +78,7 @@ export async function PATCH(req:Request){
   if(typeof p.role==='string'){sets.push('role=?');args.push(p.role.slice(0,80));}
   if(typeof p.access==='string'){
     const access=Object.keys(PROFILES).includes(p.access)?p.access:'Personalizado';
-    if(access==='Administrador'&&!me.admin)return json({error:'Só um administrador pode dar acesso de administrador.'},403);
+    if(PROTECTED_PROFILES.includes(access)&&!me.admin)return json({error:'Só um administrador pode dar o perfil '+access+'.'},403);
     if(user.id===me.id&&user.access==='Administrador'&&access!=='Administrador')return json({error:'Você não pode tirar o seu próprio acesso de administrador.'},400);
     sets.push('access=?');args.push(access);
   }

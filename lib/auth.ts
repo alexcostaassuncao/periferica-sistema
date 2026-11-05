@@ -1,6 +1,6 @@
 import {database} from '../db/raw';
 import {readSession,sha256,type SessionPayload} from './session';
-import {AREA_KEYS} from './access';
+import {AREA_KEYS,DEV_PROFILES} from './access';
 
 export type SessionUser={id:string;name:string;email:string;access:string;admin:boolean;areas:string[]};
 
@@ -43,7 +43,7 @@ export async function userFromSession(session:SessionPayload|null):Promise<Sessi
   if(!row||!row.password_hash||!row.active||session.pv!==await passwordVersion(row.password_hash))return null;
   const admin=row.access==='Administrador';
   let areas:string[]=[];try{areas=JSON.parse(row.areas||'[]');}catch{}
-  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin,areas:admin?AREA_KEYS:areas};
+  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin,areas:admin||row.access==='Desenvolvedor'?AREA_KEYS:areas};
 }
 
 export async function userFromToken(token:string|undefined){return userFromSession(await readSession(token));}
@@ -60,3 +60,5 @@ export function isAdmin(req:Request){return currentUser(req)?.admin===true;}
 // Usuário logado com acesso à área (o administrador tem todas).
 export function canAccess(req:Request,area:string){const u=currentUser(req);return !!u&&(u.admin||u.areas.includes(area));}
 export function sameOrigin(req:Request){return req.headers.get('Origin')===new URL(req.url).origin;}
+// Administrador ou Desenvolvedor: pode usar o modo desenvolvedor.
+export function isDev(req:Request){const u=currentUser(req);return !!u&&(u.admin||DEV_PROFILES.includes(u.access));}

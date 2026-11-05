@@ -117,6 +117,8 @@
       document.getElementById('meRole').textContent=PF.user.role;
       document.getElementById('meAvatar').textContent=initials(u.name);
       document.dispatchEvent(new CustomEvent('pf:me',{detail:PF.user}));
+      // Modo desenvolvedor: só para Administrador e Desenvolvedor.
+      if(u.admin||u.access==='Desenvolvedor'){const s=document.createElement('script');s.src='js/devmode.js?v=1';document.body.appendChild(s);}
     }catch{}
   };
 

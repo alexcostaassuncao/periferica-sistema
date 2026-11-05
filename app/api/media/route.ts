@@ -9,5 +9,8 @@ export async function POST(req:Request){
   const video=file.type.startsWith('video/');
   if(!/^image\/(png|jpeg|webp)$|^video\/(mp4|quicktime)$/.test(file.type))return Response.json({error:'Use imagens PNG, JPG ou WebP, ou vídeos MP4 e MOV.'},{status:400});
   if(!(file.size>0)||file.size>(video?100:20)*1024*1024)return Response.json({error:video?'O limite é 100 MB por vídeo.':'O limite é 20 MB por imagem.'},{status:413});
-  return Response.json({upload:await signUpload({folder:'periferica/publicacoes',video})},{headers:{'Cache-Control':'no-store'}});
+  // purpose=sugestao: prints do modo desenvolvedor (só imagens).
+  const purpose=new URL(req.url).searchParams.get('purpose');
+  if(purpose==='sugestao'&&video)return Response.json({error:'Nas sugestões, envie só imagens.'},{status:400});
+  return Response.json({upload:await signUpload({folder:purpose==='sugestao'?'periferica/sugestoes':'periferica/publicacoes',video})},{headers:{'Cache-Control':'no-store'}});
 }
