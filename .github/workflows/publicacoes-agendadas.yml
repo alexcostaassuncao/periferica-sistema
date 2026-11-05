@@ -1,0 +1,23 @@
+# Dispara as publicações agendadas (Facebook e Instagram) a cada 5 minutos.
+# Configure em GitHub → Settings → Secrets and variables → Actions:
+#   SITE_URL     endereço do sistema, ex.: https://periferica.vercel.app
+#   CRON_SECRET  a mesma chave definida na Vercel
+name: Publicações agendadas
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Processar fila de publicações
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$CRON_SECRET" ]; then echo "SITE_URL/CRON_SECRET não configurados; nada a fazer."; exit 0; fi
+          curl --fail-with-body -sS -X POST "$SITE_URL/api/publications/run" -H "Authorization: Bearer $CRON_SECRET"

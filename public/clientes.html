@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Clientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .squads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .squads .col{min-height:280px}
+  .squads .col-head{flex-direction:column;align-items:flex-start;gap:2px;border:0;font-size:18px}
+  .squads .col-head small{font-size:12px;color:var(--muted);font-weight:400}
+  .squads .kcard{flex-direction:row;align-items:center;gap:10px}
+  .squads .kcard small{display:block;color:var(--muted);font-size:11.5px}
+  .squads .kcard .grip{margin-left:auto;color:var(--dim);width:16px}
+  .hero{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+  .hero h2{font-size:24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .hero .facts{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px;font-size:13px}
+  .hero .facts div{display:flex;gap:9px;align-items:center}
+  .hero .facts small{display:block;color:var(--muted);font-size:11.5px}
+  .detail{display:grid;grid-template-columns:1fr 320px;gap:16px}
+  .vault{background:linear-gradient(180deg,rgba(255,88,11,.1),var(--panel))}
+  .vault ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin:14px 0;font-size:13px}
+  .vault li{display:flex;gap:9px;align-items:center}
+  .info{display:grid;grid-template-columns:140px 1fr;gap:10px 14px;font-size:13px}
+  .info span{color:var(--muted)}
+  .plat{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none}
+  .plat .lucide{width:18px}
+  @media (max-width:1100px){.detail{grid-template-columns:1fr}.squads{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script>
+const id=new URLSearchParams(location.search).get('id');
+let clients=[],tab='all',view='list',filters={status:''},q='';
+const STATUS={ativo:['Ativo','green'],inativo:['Inativo','gray'],pausado:['Pausado','yellow']};
+
+const content=PF.shell(id?{title:'Cliente',crumbs:[['Clientes','clientes.html'],['…']],search:false}:
+  {title:'Clientes',subtitle:'Todos os clientes da Periférica.',crumbs:[['Clientes'],['Clientes']],search:'Buscar cliente, CNPJ ou responsável...',
+   actions:`<button class="btn btn-primary" id="addC"><i data-lucide="plus"></i>Adicionar cliente</button>`});
+
+async function load(){
+  try{clients=(await PF.api('/api/clients')).clients;}catch(e){PF.toast(e.message,'err');}
+  id?renderDetail():renderList();
+}
+
+function services(c){return (c.services||'').split(',').map(s=>s.trim()).filter(Boolean);}
+function netIcons(c){return c.social.map(s=>`<span class="net" title="${PF.esc(s.network==='instagram'?'@'+s.username:s.name)}">${s.network==='instagram'?'<i class="ig">IG</i>':'<i class="fb">f</i>'}</span>`).join(' ')||'<span class="muted small">—</span>';}
+
+function renderList(){
+  const list=clients.filter(c=>(tab==='all'||c.squad===tab)&&(!filters.status||c.status===filters.status)&&(!q||(c.name+' '+c.segment).toLowerCase().includes(q)));
+  const count=s=>clients.filter(c=>c.squad===s).length;
+  content.innerHTML=`
+  <div class="card">
+    <div class="row between wrap" style="margin-bottom:6px">
+      <div class="tabs" style="margin:0;border:0">${[['all','Todos',clients.length],['C1','C1',count('C1')],['C2','C2',count('C2')],['C3','C3',count('C3')]].map(([k,l,n])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${n}</span></button>`).join('')}</div>
+      <div class="row">${PF.select('fStatus','Status',[['','Status: Todos'],['ativo','Ativo'],['pausado','Pausado'],['inativo','Inativo']])}
+        <div class="toggle"><button class="${view==='list'?'on':''}" data-v="list"><i data-lucide="list" style="width:15px"></i> Lista</button><button class="${view==='squad'?'on':''}" data-v="squad"><i data-lucide="columns-3" style="width:15px"></i> Por squad</button></div></div>
+    </div>
+    ${!clients.length?`<div class="empty"><i data-lucide="building-2"></i><div>Nenhum cliente cadastrado ainda.</div></div>`:
+    view==='list'?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Squad</th><th>Serviços contratados</th><th>Redes</th><th>Situação</th><th>Data de entrada</th><th></th></tr></thead><tbody>
+      ${list.map(c=>`<tr><td><a class="who" href="clientes.html?id=${c.id}">${PF.chip(c.name)}<div><b>${PF.esc(c.name)}</b><small>${PF.esc(c.segment||'—')}</small></div></a></td>
+        <td>${c.squad?PF.badge(c.squad,'orange'):'<span class="muted">—</span>'}</td>
+        <td><div class="row wrap" style="gap:5px">${services(c).map(s=>PF.badge(s,'blue')).join('')||'<span class="muted small">—</span>'}</div></td>
+        <td>${netIcons(c)}</td>
+        <td>${PF.badge(...(STATUS[c.status]||[c.status,'gray']))}</td>
+        <td>${new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+        <td class="right"><a class="icon-btn" href="clientes.html?id=${c.id}" aria-label="Abrir"><i data-lucide="chevron-right"></i></a></td></tr>`).join('')}
+    </tbody></table></div>`:
+    `<p class="muted small" style="margin:6px 0 12px">Arraste um cliente para mover entre os squads.</p><div class="squads">${['C1','C2','C3'].map(s=>{const it=clients.filter(c=>c.squad===s);return `<div class="col" data-col="${s}"><div class="col-head">${s}<small><span class="n">${it.length}</span> clientes</small></div>
+      ${it.map(c=>`<div class="kcard" data-id="${c.id}">${PF.chip(c.name)}<div><b>${PF.esc(c.name)}</b><small>${PF.esc(services(c)[0]||c.segment||'')}</small></div><i data-lucide="grip-vertical" class="grip"></i></div>`).join('')}</div>`;}).join('')}</div>
+      ${clients.some(c=>!c.squad)?`<p class="muted small" style="margin-top:10px">Sem squad: ${clients.filter(c=>!c.squad).map(c=>PF.esc(c.name)).join(', ')}</p>`:''}`}
+  </div>`;
+  PF.icons();
+  const st=content.querySelector('#fStatus');st.value=filters.status;st.onchange=()=>{filters.status=st.value;renderList();};
+  content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;renderList();});
+  content.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{view=b.dataset.v;renderList();});
+  if(view==='squad'&&clients.length)PF.kanban(content.querySelector('.squads'),async(cid,squad)=>{
+    try{await PF.api('/api/clients',{method:'PATCH',body:{id:cid,squad}});clients.find(c=>c.id===cid).squad=squad;PF.toast('Cliente movido para o '+squad+'.','ok');}
+    catch(e){PF.toast(e.message,'err');load();}
+  });
+}
+
+function renderDetail(){
+  const c=clients.find(x=>x.id===id);
+  if(!c){content.innerHTML='<div class="card empty"><i data-lucide="search-x"></i><div>Cliente não encontrado.</div></div>';PF.icons();return;}
+  document.title='Periférica · '+c.name;
+  document.querySelector('.crumbs').innerHTML=`<a href="clientes.html">Clientes</a><i data-lucide="chevron-right"></i><span>${PF.esc(c.name)}</span>`;
+  document.querySelector('.page-title h1').textContent=c.name;
+  const fb=c.social.find(s=>s.network==='facebook'),ig=c.social.find(s=>s.network==='instagram');
+  const access=[['instagram','c-pink','Instagram',ig?'Perfil @'+ig.username:'Perfil','Social media','Gestão de conteúdo',ig?'Liberado':'Pendente'],
+    ['facebook','c-blue','Meta Business','Conta da empresa','Tráfego','Administrador',fb?'Liberado':'Pendente'],
+    ['megaphone','c-yellow','Google Ads','Conta de anúncios','Tráfego','Administrador','Pendente'],
+    ['globe','c-green','Website','Hospedagem / Admin','Projetos','Administrador','Liberado'],
+    ['mail','c-gray','E-mail','Caixa compartilhada','Comunicação','Caixa compartilhada','Liberado']];
+  content.innerHTML=`
+  <div class="card mb hero">
+    ${PF.chip(c.name,'lg')}
+    <div style="flex:1;min-width:240px">
+      <h2>${PF.esc(c.name)} ${PF.badge(c.status==='ativo'?'Cliente ativo':STATUS[c.status]?.[0]||c.status,STATUS[c.status]?.[1]||'gray')}</h2>
+      <div class="muted small">${PF.esc(c.segment||'Segmento não informado')}${c.squad?' · Squad '+c.squad:''}</div>
+      <div class="facts"><div><i data-lucide="calendar"></i><div>${new Date(c.created_at).toLocaleDateString('pt-BR')}<small>Cliente desde</small></div></div>
+        <div><i data-lucide="instagram"></i><div>${ig?'@'+PF.esc(ig.username):'Não conectado'}<small>Instagram</small></div></div>
+        <div><i data-lucide="facebook"></i><div>${fb?PF.esc(fb.name):'Não conectada'}<small>Página do Facebook</small></div></div></div>
+    </div>
+    <button class="btn btn-ghost" id="edit"><i data-lucide="pencil"></i>Editar</button>
+  </div>
+  <div class="detail">
+    <div>
+      <div class="tabs" data-tabs><button data-tab="geral" class="on">Visão geral</button><button data-tab="acessos">Acessos</button><button data-tab="redes">Redes sociais</button><button data-tab="equipe">Equipe</button><button data-tab="servicos">Serviços contratados</button><button data-tab="docs">Documentos</button><button data-tab="hist">Histórico</button></div>
+      <section data-pane="geral" class="card"><div class="card-head"><h3>Informações da empresa</h3></div>
+        <div class="info"><span>Nome fantasia</span><b>${PF.esc(c.name)}</b><span>Segmento</span><b>${PF.esc(c.segment||'—')}</b><span>Squad</span><b>${c.squad||'—'}</b><span>Serviços</span><b>${PF.esc(c.services||'—')}</b><span>Situação</span><b>${STATUS[c.status]?.[0]||c.status}</b></div></section>
+      <section data-pane="acessos" hidden class="card"><div class="card-head"><div><h3>Acessos às plataformas</h3><p>Registre e gerencie os acessos do cliente. As credenciais ficam protegidas em um cofre empresarial.</p></div><button class="btn btn-ghost btn-sm"><i data-lucide="plus"></i>Adicionar acesso</button></div>
+        <div class="table-wrap"><table class="tbl"><thead><tr><th>Plataforma</th><th>Tipo de acesso</th><th>Permissão</th><th>Status</th><th class="right">Ações</th></tr></thead><tbody>
+        ${access.map(([i,col,n,s,t,p,st])=>`<tr><td><div class="who"><span class="plat ${col}"><i data-lucide="${i}"></i></span><div><b>${n}</b><small>${PF.esc(s)}</small></div></div></td><td>${t}</td><td>${p}</td><td>${PF.badge(st,st==='Liberado'?'solid-green':'solid-amber')}</td><td class="right"><button class="btn btn-ghost btn-sm"><i data-lucide="${st==='Liberado'?'external-link':'key-round'}"></i>${st==='Liberado'?'Abrir no cofre':'Solicitar acesso'}</button></td></tr>`).join('')}
+        </tbody></table></div><p class="tiny muted" style="margin-top:8px">${PF.demo()}</p></section>
+      <section data-pane="redes" hidden class="card"><div class="card-head"><div><h3>Redes sociais conectadas</h3><p>Usadas para publicar direto pelo sistema.</p></div><a class="btn btn-primary btn-sm" href="/api/social/meta/start?client=${c.id}"><i data-lucide="plug"></i>${fb?'Reconectar':'Conectar'} Facebook + Instagram</a></div>
+        ${[['facebook',fb],['instagram',ig]].map(([n,a])=>`<div class="li">${PF.net(n)}<div class="t"><b>${a?PF.esc(n==='instagram'?'@'+a.username:a.name):'<span class="muted">Não conectado</span>'}</b></div>${a?PF.badge('Conectado','green'):''}</div>`).join('')}
+        <a class="link" href="publicacoes.html" style="margin-top:12px">Ver publicações deste cliente <i data-lucide="arrow-right"></i></a></section>
+      ${['equipe','servicos','docs','hist'].map(k=>`<section data-pane="${k}" hidden class="card empty"><i data-lucide="construction"></i><div>Esta aba entra na próxima etapa.</div></section>`).join('')}
+    </div>
+    <aside class="card vault"><div class="ico c-solid-orange"><i data-lucide="lock"></i></div><h3 style="margin-top:12px">Cofre de senhas empresarial</h3>
+      <p class="muted small" style="margin-top:6px;line-height:1.5">As credenciais ficam numa ferramenta segura, integrada ao sistema. Só usuários autorizados têm acesso aos dados sensíveis.</p>
+      <ul>${['Senhas protegidas e criptografadas','Controle de permissões por usuário','Registro de quem acessou','Integração com a ficha do cliente','Revogação de acessos quando necessário'].map(t=>`<li><input type="checkbox" class="chk" checked disabled>${t}</li>`).join('')}</ul>
+      <button class="btn btn-outline" style="width:100%">Acessar cofre <i data-lucide="external-link"></i></button></aside>
+  </div>`;
+  PF.icons();PF.tabs(content);
+  content.querySelector('#edit').onclick=()=>editClient(c);
+}
+
+function editClient(c){
+  const m=PF.modal(`<div class="modal-head"><h3>${c?'Editar cliente':'Adicionar cliente'}</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  ${c?'':`<div class="grid g2 mb"><div class="card flat"><div class="row"><i data-lucide="file-check" style="color:var(--green)"></i><b class="small">Cliente novo (via contrato)</b></div><p class="tiny muted" style="margin-top:6px">Entra sozinho após a assinatura do contrato e segue para o onboarding.</p></div>
+    <div class="card flat" style="border-color:var(--orange)"><div class="row"><i data-lucide="user-plus" style="color:var(--orange)"></i><b class="small">Cliente já ativo</b></div><p class="tiny muted" style="margin-top:6px">Cadastro manual de quem já faz parte da agência.</p></div></div>`}
+  <form class="stack" id="ec">
+    <label class="field"><span>Nome do cliente</span><input class="input" name="name" required value="${PF.esc(c?.name||'')}"></label>
+    <div class="grid g2"><label class="field"><span>Segmento</span><input class="input" name="segment" value="${PF.esc(c?.segment||'')}" placeholder="Saúde / Estética"></label>
+      <label class="field"><span>Squad</span><select class="select-in" name="squad">${['','C1','C2','C3'].map(s=>`<option value="${s}" ${c?.squad===s?'selected':''}>${s||'—'}</option>`).join('')}</select></label></div>
+    <label class="field"><span>Serviços contratados <small class="muted">(separados por vírgula)</small></span><input class="input" name="services" value="${PF.esc(c?.services||'')}" placeholder="Social Media, Tráfego"></label>
+    ${c?`<label class="field"><span>Situação</span><select class="select-in" name="status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${c.status===k?'selected':''}>${v[0]}</option>`).join('')}</select></label>`:''}
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`);
+  m.el.querySelector('#ec').onsubmit=async e=>{
+    e.preventDefault();const body=Object.fromEntries(new FormData(e.target));
+    try{
+      if(c)await PF.api('/api/clients',{method:'PATCH',body:{id:c.id,...body}});
+      else await PF.api('/api/clients',{method:'POST',body});
+      m.close();PF.toast('Cliente salvo.','ok');load();
+    }catch(x){PF.toast(x.message,'err');}
+  };
+}
+if(!id){
+  document.getElementById('addC').onclick=()=>editClient(null);
+  document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();renderList();};
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Financeiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .split{grid-template-columns:1fr 340px}
+  .seg{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .seg button{display:flex;align-items:center;gap:9px;padding:11px 18px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);font-weight:600;font-size:13.5px;color:var(--soft)}
+  .seg button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+  .seg .lucide{width:18px}
+  .pay{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+  .pay .lucide{width:15px}
+  .sq{display:grid;grid-template-columns:34px 1fr 90px;gap:10px;align-items:center;font-size:13px;margin-top:10px}
+  .day{width:42px;height:42px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;line-height:1;flex:none}
+  .day b{font-size:15px}.day small{font-size:9px;margin-top:2px}
+  .restrict{display:flex;gap:12px;align-items:center;border:1px solid rgba(255,88,11,.4);background:rgba(255,88,11,.08);border-radius:12px;padding:12px 14px;font-size:12.5px;margin-top:14px}
+  .restrict .lucide{color:var(--orange);width:26px;height:26px}
+  @media (max-width:1200px){.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Financeiro',subtitle:'Controle de contratos, receitas e renovações.',crumbs:[['Financeiro · Direção'],['Controle de contratos']],search:'Buscar cliente, contrato...'});
+const PAY={Boleto:'file-text',Cartão:'credit-card',Pix:'diamond'};
+const DATA={
+  gestao:[['Elegance Cortinas','C1','Gestão + Tráfego','R$ 3.500/mês','Boleto','Dia 10','15/12/2026','Vence em 47 dias','solid-amber'],['Clínica Vida+','C2','Gestão','R$ 2.199/mês','Cartão','Dia 05','30/06/2027','Ativo','solid-green'],['Mercado Doce','C3','Gestão + Tráfego','R$ 2.800/mês','Pix','Dia 15','10/11/2026','Vence em 12 dias','solid-red'],['ELOWAY APP','C2','Gestão','R$ 2.199/mês','Boleto','Dia 10','01/08/2027','Ativo','solid-green'],['Gastron','C1','Gestão','R$ 1.990/mês','Cartão','Dia 08','20/04/2027','Ativo','solid-green']],
+  projetos:[['Real Pedras','–','Projeto (Site)','R$ 3.990','Pix','–','15/12/2026','Em andamento','solid-blue'],['DZAM Uniformes','–','Projeto (Catálogo)','R$ 5.900','Boleto','–','30/10/2026','Em andamento','solid-blue'],['Parque das Águas','–','Projeto (Site)','R$ 4.500','Pix','–','28/02/2027','Concluído','gray']],
+  servidores:[['Real Pedras','–','Hospedagem','R$ 89/mês','Cartão','Dia 01','–','Ativo','solid-green'],['Parque das Águas','–','Hospedagem + E-mail','R$ 129/mês','Boleto','Dia 05','–','Ativo','solid-green']],
+};
+const SQC={C1:'blue',C2:'purple',C3:'green'};
+let seg=location.hash==='#renovacoes'?'renov':location.hash==='#cancelamentos'?'canc':location.hash==='#squads'?'squads':'gestao';
+function table(rows){return `<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Squad</th><th>Serviço/Contrato</th><th>Valor</th><th>Cobrança</th><th>Vencimento</th><th>Término</th><th>Status</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><div class="who">${PF.chip(r[0])}<b class="small">${r[0]}</b></div></td><td>${r[1]==='–'?'<span class="muted">–</span>':PF.badge(r[1],SQC[r[1]])}</td><td>${r[2]}</td><td class="nowrap">${r[3]}</td><td><span class="pay"><i data-lucide="${PAY[r[4]]}"></i>${r[4]}</span></td><td>${r[5]}</td><td>${r[6]}</td><td>${PF.badge(r[7],r[8])}</td></tr>`).join('')}</tbody></table></div>`;}
+function body(){
+  if(seg==='renov')return `<h3 class="mb">Renovações (próximos 60 dias)</h3>`+table([...DATA.gestao,...DATA.projetos].filter(r=>/Vence/.test(r[7])));
+  if(seg==='canc')return `<h3 class="mb">Cancelamentos</h3><table class="tbl"><thead><tr><th>Cliente</th><th>Serviço</th><th>Data</th><th>Motivo</th><th>Receita perdida</th></tr></thead><tbody><tr><td><div class="who">${PF.chip('Lojas Dallas')}<b class="small">Lojas Dallas</b></div></td><td>Gestão</td><td>02/10/2026</td><td>Corte de orçamento</td><td>R$ 2.199/mês</td></tr><tr><td><div class="who">${PF.chip('Estação Lanches')}<b class="small">Estação Lanches</b></div></td><td>Tráfego</td><td>18/09/2026</td><td>Levou para equipe interna</td><td>R$ 1.200/mês</td></tr></tbody></table>`;
+  if(seg==='squads')return `<h3 class="mb">Rentabilidade por squad</h3><div class="grid g3">${[['C1','blue',18450,7200],['C2','purple',14980,6400],['C3','green',12830,5900]].map(([s,c,r,cst])=>`<div class="card flat"><div class="row between"><b style="font-size:20px">${s}</b>${PF.badge(Math.round((r-cst)/r*100)+'% margem',c)}</div><div class="stack small" style="margin-top:12px;gap:8px"><div class="row between"><span class="muted">Receita</span><b>${PF.brl(r)}</b></div><div class="row between"><span class="muted">Custos</span><b>${PF.brl(cst)}</b></div><div class="row between"><span class="muted">Resultado</span><b style="color:var(--green)">${PF.brl(r-cst)}</b></div></div></div>`).join('')}</div>`;
+  return `<div class="filters"><label class="search" style="width:220px"><i data-lucide="search"></i><input placeholder="Buscar cliente..."></label>${PF.select('s','Squad',['Squad: Todas','C1','C2','C3'])}${PF.select('st','Status',['Status: Todos','Ativo','Vencendo','Em andamento'])}${PF.select('c','Cobrança',['Cobrança: Todas','Boleto','Cartão','Pix'])}<span style="margin-left:auto">${PF.demo()}</span></div>`+table(DATA[seg]);
+}
+function render(){
+  content.innerHTML=`
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'file-text',color:'gray',value:'48',delta:'↑ 12%',label:'Contratos ativos',sub:'vs. mês anterior'})}
+    ${PF.kpi({icon:'clock',color:'pink',value:'6',delta:'↑ 20%',deltaKind:'warn',label:'Vencendo em 30 dias',sub:'Exigem atenção'})}
+    ${PF.kpi({icon:'refresh-cw',color:'green',value:'4',label:'Renovações pendentes',sub:'Sem negociação registrada'})}
+    ${PF.kpi({icon:'bar-chart-3',color:'blue',value:'R$ 52.430',delta:'↑ 8%',label:'Receita recorrente mensal',sub:'vs. mês anterior'})}
+  </section>
+  <div class="split">
+    <div class="card">
+      <div class="seg">${[['gestao','users','Gestão (28)'],['projetos','folder','Projetos (12)'],['servidores','database','Servidores (8)'],['renov','refresh-cw','Renovações'],['canc','folder-x','Cancelamentos'],['squads','chart-column','Por squad']].map(([k,i,l])=>`<button class="${seg===k?'on':''}" data-s="${k}"><i data-lucide="${i}"></i>${l}</button>`).join('')}</div>
+      ${body()}
+    </div>
+    <aside class="stack">
+      <div class="card"><div class="card-head"><h3>Próximos vencimentos</h3><a class="link tiny" href="#">Ver todos</a></div>
+        ${[['10','NOV','Mercado Doce','Contrato termina em 12 dias','#ffe8ea','#e11d48'],['25','NOV','Elegance Cortinas','Contrato termina em 47 dias','#fff1e6','#ff580b'],['01','DEZ','Clínica Vida+','Contrato termina em 57 dias','#e5f2ff','#1677e5']].map(([d,m,n,s,bg,fg])=>`<div class="li"><div class="day" style="background:${bg};color:${fg}"><b>${d}</b><small>${m}</small></div><div class="t"><b>${n}</b><span>${s}</span></div><i data-lucide="chevron-right"></i></div>`).join('')}</div>
+      <div class="card"><div class="card-head"><h3>Notificações</h3><a class="link tiny" href="#">Ver todas</a></div>
+        ${[['triangle-alert','pink','Mercado Doce','Contrato termina em 12 dias. Nenhuma renovação registrada.','há 1h'],['clock','yellow','Elegance Cortinas','Faltam 47 dias. Verificar renovação.','há 3h'],['info','gray','ELOWAY APP','Reajuste contratual em jan/2027.','há 1 dia']].map(([i,c,n,s,t])=>`<div class="li"><span class="ico md round c-${c}"><i data-lucide="${i}"></i></span><div class="t"><b>${n}</b><span style="white-space:normal">${s}</span></div><span class="muted tiny nowrap">${t}</span></div>`).join('')}</div>
+      <div class="card"><div class="card-head"><h3>Receita por squad (Gestão)</h3><span class="select">Este mês<i data-lucide="chevron-down"></i></span></div>
+        ${[['C1','blue',18450],['C2','purple',14980],['C3','green',12830]].map(([s,c,v])=>`<div class="sq">${PF.badge(s,c)}<div class="bar"><span data-w="${v/18450*100}" style="width:0;background:var(--${c})"></span></div><b class="right">${PF.brl(v)}</b></div>`).join('')}</div>
+      <div class="restrict"><i data-lucide="lock"></i><div><b style="color:var(--orange)">Acesso restrito</b><br>Disponível apenas para a direção.</div></div>
+    </aside>
+  </div>`;
+  PF.icons();PF.animateBars();
+  content.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{seg=b.dataset.s;render();});
+}
+addEventListener('hashchange',()=>{seg={'#renovacoes':'renov','#cancelamentos':'canc','#squads':'squads'}[location.hash]||'gestao';render();});
+render();
+</script>
+</body>
+</html>

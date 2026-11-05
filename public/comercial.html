@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Comercial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .col-head{border-radius:8px;border-bottom:0;padding:9px 10px;background:color-mix(in srgb,var(--c) 22%,transparent)}
+  .kcard .src{align-self:flex-start}
+  .kcard .contact{display:flex;align-items:center;gap:6px;color:var(--soft);font-size:12.5px}
+  .kcard .contact .lucide{width:14px;height:14px;color:var(--muted)}
+  .kcard .acts{display:flex;align-items:center;gap:6px}
+  .wa{display:inline-flex;align-items:center;gap:5px;background:rgba(37,211,102,.15);color:#3ee07f;border-radius:6px;padding:4px 8px;font-size:11.5px;font-weight:600}
+  .wa .lucide{width:13px;height:13px}
+  .kcard .acts .icon-btn{width:26px;height:26px}
+  .kcard .acts .icon-btn .lucide{width:15px}
+  .kcard .owner{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--soft);padding-top:7px;border-top:1px solid var(--line)}
+  .kcard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+  .kcard .top small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+  .info-cards .card{display:flex;flex-direction:column;gap:10px}
+  .info-cards .card ul{list-style:none;display:flex;flex-direction:column;gap:9px;font-size:13px;background:rgba(0,0,0,.2);border-radius:10px;padding:12px}
+  .info-cards .card li{display:flex;gap:9px;align-items:center}
+  .info-cards .card li .lucide{width:16px}
+  .t-wait{background:linear-gradient(180deg,rgba(246,181,30,.13),var(--panel))}
+  .t-arch{background:linear-gradient(180deg,rgba(244,63,94,.13),var(--panel))}
+  .t-hist{background:linear-gradient(180deg,rgba(31,213,154,.12),var(--panel))}
+  .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12.5px}
+  .kv small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Comercial',subtitle:'Gestão de leads e oportunidades',crumbs:[['Clientes'],['Comercial']],search:'Buscar lead, empresa ou contato...',
+  actions:`<button class="btn btn-primary" id="newLead"><i data-lucide="plus"></i>Novo lead</button>`});
+
+const STAGES=[['novo','Novo lead','var(--blue)'],['contato','Em contato','var(--orange)'],['reuniao','Reunião','var(--purple)'],['proposta','Proposta enviada','var(--yellow)'],['negociacao','Negociação','var(--pink)'],['fechado','Fechado','var(--green)']];
+const SRC={'Meta Ads':'pink','Prospecção':'blue','WhatsApp':'green','Proposta':'blue','Contrato':'pink','Site':'orange','Ajustes':'orange','Indicação':'purple'};
+const OWNERS=['Tiago','João','Sabrina','Djenifer'];
+let leads=[
+  ['Clínica Vida+','Saúde / Estética','Meta Ads','Juliana Ferreira','(48) 9 9123-4567','juliana@clinicavida.com.br','novo',''],
+  ['Real Pedras','Construção','Site','Carlos Mendes','(48) 9 9234-1100','carlos@realpedras.com.br','novo','João'],
+  ['Estação Lanches','Alimentação','Prospecção','Paulo Silva','(48) 9 9987-6655','paulo@estacaolanches.com.br','contato','Sabrina'],
+  ['M2 Uniformes','Varejo','WhatsApp','Camila Duarte','(48) 9 9011-2233','camila@m2uniformes.com.br','contato','João'],
+  ['Elegance Cortinas','Decoração','WhatsApp','Ana Júlia','(48) 9 9911-2233','ana@elegance.com.br','reuniao','Tiago'],
+  ['Airsell','Indústria','Meta Ads','Roberto Lima','(48) 9 9444-1212','roberto@airsell.com.br','reuniao','Djenifer'],
+  ['ELOWAY APP','Tecnologia','Proposta','Felipe Rocha','(48) 9 9978-3344','felipe@eloway.com.br','proposta','João'],
+  ['Escritório A1','Serviços','Proposta','Marcela Pinto','(48) 9 9555-7788','marcela@escritorioa1.com.br','proposta','Sabrina'],
+  ['Supermercado dos Amigos','Alimentação','Proposta','Fernanda Vieira','(48) 9 9666-3030','fernanda@amigos.com.br','negociacao','Tiago'],
+  ['Filetto Uniformes','Indústria','Ajustes','Ricardo Alves','(48) 9 9777-4545','ricardo@filetto.com.br','negociacao','João'],
+  ['Parque das Águas','Turismo','Contrato','Lara Gomes','(48) 9 9888-1919','lara@parquedasaguas.com.br','fechado','Sabrina'],
+  ['DZAM Uniformes','Indústria','Contrato','Daniel Souza','(48) 9 9333-2828','daniel@dzam.com.br','fechado','Tiago'],
+].map(([name,seg,src,contact,phone,email,stage,owner],i)=>({id:'l'+i,name,seg,src,contact,phone,email,stage,owner,interest:'Gestão + Tráfego'}));
+const waiting=[{name:'Pet Love',seg:'Pet shop',reason:'Sem resposta',back:'20/11'},{name:'Solaris Tech',seg:'Tecnologia',reason:'Retomada futura (3 meses)',back:'05/02'}];
+const archived=[{name:'Bella Forma',seg:'Academia',reason:'Fechou com outra empresa'},{name:'Lojas Dallas',seg:'Varejo',reason:'Desqualificado (fora do perfil)'}];
+let tab='andamento',filters={src:'',seg:'',owner:''};
+const wa=p=>'https://wa.me/55'+p.replace(/\D/g,'');
+
+function card(l){
+  return `<div class="kcard" data-id="${l.id}">
+    <div class="top"><div><b>${PF.esc(l.name)}</b><small>${PF.esc(l.seg)}</small></div><button class="icon-btn" data-open="${l.id}" aria-label="Abrir"><i data-lucide="ellipsis-vertical"></i></button></div>
+    <span class="badge b-${SRC[l.src]||'gray'} src">${PF.esc(l.src)}</span>
+    <div class="contact"><i data-lucide="user"></i>${PF.esc(l.contact)}</div>
+    <div class="acts"><a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i>WhatsApp</a>
+      <a class="icon-btn" href="tel:${l.phone.replace(/\D/g,'')}" aria-label="Ligar"><i data-lucide="phone"></i></a>
+      <a class="icon-btn" href="mailto:${PF.esc(l.email)}" aria-label="Email"><i data-lucide="mail"></i></a></div>
+    <div class="owner">${l.owner?PF.avatar(l.owner)+PF.esc(l.owner):'<span class="avatar sm" style="background:#2a313c"><i data-lucide="user" style="width:13px"></i></span><span class="muted">Sem responsável</span>'}</div>
+  </div>`;
+}
+
+function render(){
+  const list=leads.filter(l=>(!filters.src||l.src===filters.src)&&(!filters.seg||l.seg===filters.seg)&&(!filters.owner||l.owner===filters.owner));
+  content.innerHTML=`
+  <div class="tabs"><button class="${tab==='andamento'?'on':''}" data-t="andamento">Em andamento<span class="count">${leads.length}</span></button><button class="${tab==='espera'?'on':''}" data-t="espera">Em espera<span class="count">${waiting.length}</span></button><button class="${tab==='arquivados'?'on':''}" data-t="arquivados">Arquivados<span class="count">${archived.length}</span></button><span style="margin-left:auto;align-self:center">${PF.demo()}</span></div>
+  ${tab==='andamento'?`
+  <div class="filters">
+    ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.src))].map(s=>[s,s])])}
+    ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.seg))].map(s=>[s,s])])}
+    ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...OWNERS.map(s=>[s,s])])}
+  </div>
+  <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=list.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')}</div>`;}).join('')}</div>`
+  :tab==='espera'?`<div class="card mb"><table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th><th>Retomar em</th><th></th></tr></thead><tbody>${waiting.map(w=>`<tr><td><div class="who">${PF.chip(w.name)}<div><b>${w.name}</b><small>${w.seg}</small></div></div></td><td>${w.reason}</td><td>${w.back}</td><td class="right"><button class="btn btn-ghost btn-sm" data-react="${w.name}"><i data-lucide="rotate-ccw"></i>Reativar</button></td></tr>`).join('')}</tbody></table></div>`
+  :`<div class="card mb"><table class="tbl"><thead><tr><th>Lead</th><th>Motivo do encerramento</th><th></th></tr></thead><tbody>${archived.map(w=>`<tr><td><div class="who">${PF.chip(w.name)}<div><b>${w.name}</b><small>${w.seg}</small></div></div></td><td>${w.reason}</td><td class="right"><button class="btn btn-ghost btn-sm" data-react="${w.name}"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></td></tr>`).join('')}</tbody></table></div>`}
+  <section class="grid g3 info-cards">
+    <div class="card t-wait"><div class="row"><div class="ico md c-yellow round"><i data-lucide="clock"></i></div><div><b>Em espera</b><p class="muted small">Leads que podem voltar a negociar, com data de retomada e responsável.</p></div></div>
+      <ul><li><i data-lucide="clock" style="color:var(--yellow)"></i>Sem resposta (com data de retorno)</li><li><i data-lucide="clock" style="color:var(--yellow)"></i>Retomada futura (ex.: 3 meses)</li><li><i data-lucide="clock" style="color:var(--yellow)"></i>Aguardando definição do cliente</li></ul></div>
+    <div class="card t-arch"><div class="row"><div class="ico md c-pink round"><i data-lucide="mail-x"></i></div><div><b>Arquivados</b><p class="muted small">Leads encerrados, com o motivo registrado e histórico salvo.</p></div></div>
+      <ul><li><i data-lucide="square-x" style="color:var(--pink)"></i>Não teve interesse</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Desqualificado (fora do perfil)</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Não respondeu (após tentativas)</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Fechou com outra empresa</li></ul></div>
+    <div class="card t-hist"><div class="row"><div class="ico md c-green round"><i data-lucide="file-text"></i></div><div><b>Histórico e reativação</b><p class="muted small">Todos os leads ficam salvos para consulta e podem ser reativados a qualquer momento.</p></div></div>
+      <button class="btn btn-ghost" style="margin-top:auto" data-t="espera"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></div>
+  </section>`;
+  PF.icons();
+  content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();});
+  if(tab==='andamento'){
+    const bind=(id,key)=>{const s=content.querySelector('#'+id);s.value=filters[key];s.onchange=()=>{filters[key]=s.value;render();};};
+    bind('fSrc','src');bind('fSeg','seg');bind('fOwner','owner');
+    PF.kanban(content.querySelector('.kanban'),(id,col)=>{const l=leads.find(x=>x.id===id);l.stage=col;PF.toast(`${l.name} → ${STAGES.find(s=>s[0]===col)[1]}`,'ok');});
+    content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openLead(b.dataset.open));
+  }
+  content.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>PF.toast(b.dataset.react+' voltou para o funil.','ok'));
+}
+
+function openLead(id){
+  const l=leads.find(x=>x.id===id);
+  const m=PF.modal(`<div class="modal-head"><div class="row"><h3>${PF.esc(l.name)}</h3><span class="badge b-green"><i data-lucide="circle-check" style="width:13px"></i>Qualificado</span></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <div class="tabs" data-tabs><button class="on" data-tab="r">Resumo</button><button data-tab="t">Triagem</button><button data-tab="i">Interações</button><button data-tab="a">Arquivos</button></div>
+    <section data-pane="r" class="stack">
+      <div><div class="muted small" style="margin-bottom:8px">Informações do contato</div>
+        <div class="li"><i data-lucide="user"></i><div class="t"><b>${PF.esc(l.contact)}</b></div><i data-lucide="phone"></i><span class="small">${l.phone}</span><a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i></a></div>
+        <div class="li"><i data-lucide="mail"></i><div class="t"><span>${PF.esc(l.email)}</span></div></div></div>
+      <div class="kv"><div><small>Origem</small><span class="badge b-${SRC[l.src]||'gray'}">${l.src}</span></div><div><small>Segmento</small>${l.seg}</div><div><small>Interesse</small>${l.interest}</div></div>
+      <label class="field"><span>Responsável comercial</span><select class="select-in" id="owner"><option value="">Sem responsável</option>${OWNERS.map(o=>`<option ${o===l.owner?'selected':''}>${o}</option>`).join('')}</select></label>
+      <label class="field"><span>Etapa do funil</span><select class="select-in" id="stage">${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''}>${lb}</option>`).join('')}</select></label>
+    </section>
+    <section data-pane="t" hidden class="stack small">
+      <div class="li"><div class="t"><span>Qual o principal objetivo?</span><b>Atrair mais clientes pelo Instagram</b></div></div>
+      <div class="li"><div class="t"><span>Já investe em anúncios?</span><b>Sim, até R$ 1.000/mês</b></div></div>
+      <div class="li"><div class="t"><span>Serviços de interesse</span><b>${l.interest}</b></div></div>
+      <div class="li"><div class="t"><span>Aviso de privacidade</span><b>Aceito no WhatsApp</b></div></div>
+    </section>
+    <section data-pane="i" hidden class="stack small">
+      <div class="li"><i data-lucide="message-circle"></i><div class="t"><b>Primeiro contato pelo WhatsApp</b><span>há 2 dias · ${PF.esc(l.owner||'Automação')}</span></div></div>
+      <div class="li"><i data-lucide="calendar"></i><div class="t"><b>Reunião de diagnóstico agendada</b><span>ontem</span></div></div>
+      <textarea class="input" placeholder="Registrar interação (reunião, proposta, retorno)…" style="min-height:70px"></textarea>
+      <button class="btn btn-ghost btn-sm" style="align-self:flex-end">Registrar</button>
+    </section>
+    <section data-pane="a" hidden><div class="empty"><i data-lucide="paperclip"></i><div>Nenhum arquivo ainda.</div></div></section>
+    <div class="modal-foot"><button class="btn btn-ghost" id="arch"><i data-lucide="archive"></i>Arquivar</button><button class="btn btn-primary" id="save">Salvar</button></div>`,{side:true});
+  PF.tabs(m.el);
+  m.el.querySelector('#save').onclick=()=>{l.owner=m.el.querySelector('#owner').value;l.stage=m.el.querySelector('#stage').value;m.close();render();PF.toast('Lead atualizado.','ok');};
+  m.el.querySelector('#arch').onclick=()=>{const reason=prompt('Motivo do encerramento?','Não teve interesse');if(!reason)return;archived.push({name:l.name,seg:l.seg,reason});leads=leads.filter(x=>x!==l);m.close();render();};
+}
+
+document.getElementById('newLead').onclick=()=>{
+  const m=PF.modal(`<div class="modal-head"><h3>Novo lead</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  <form class="stack" id="nl"><div class="grid g2"><label class="field"><span>Empresa</span><input class="input" name="name" required></label><label class="field"><span>Segmento</span><input class="input" name="seg"></label></div>
+  <div class="grid g2"><label class="field"><span>Contato</span><input class="input" name="contact" required></label><label class="field"><span>WhatsApp</span><input class="input" name="phone" placeholder="(48) 9 0000-0000"></label></div>
+  <div class="grid g2"><label class="field"><span>Email</span><input class="input" name="email" type="email"></label><label class="field"><span>Origem</span><select class="select-in" name="src">${['Meta Ads','Prospecção','WhatsApp','Site','Indicação'].map(o=>`<option>${o}</option>`).join('')}</select></label></div>
+  <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`);
+  m.el.querySelector('#nl').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));leads.unshift({id:'n'+Date.now(),...d,phone:d.phone||'',email:d.email||'',stage:'novo',owner:'',interest:'—'});m.close();render();PF.toast('Lead adicionado em Novo lead.','ok');};
+};
+render();
+</script>
+</body>
+</html>

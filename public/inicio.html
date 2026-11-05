@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Início</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .hello h1{font-size:30px}
+  .row-2{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:14px;margin-bottom:16px}
+  .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .sectors{display:flex;flex-direction:column;gap:9px}
+  .sector{display:grid;grid-template-columns:28px minmax(110px,1.1fr) 1fr 48px 40px;align-items:center;gap:12px;font-size:13.5px}
+  .sector .bar{height:10px}
+  .num,.pct{text-align:right;color:#dfe3e9;font-variant-numeric:tabular-nums}
+  .donut-wrap{display:flex;align-items:center;gap:22px;height:calc(100% - 52px)}
+  .donut{position:relative;width:150px;height:150px;flex:none}
+  .donut svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .donut-center{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+  .donut-center b{font-size:30px;font-weight:700;line-height:1}
+  .donut-center span{color:#cfd5dd;font-size:13px;margin-top:4px}
+  .legend{display:flex;flex-direction:column;gap:13px;flex:1;min-width:0}
+  .legend li{list-style:none;display:flex;align-items:center;gap:10px;font-size:13px}
+  .legend i{width:12px;height:12px;border-radius:50%;flex:none}
+  .legend b{margin-left:auto;font-weight:600}
+  .day{width:44px;height:42px;border-radius:8px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;line-height:1}
+  .day b{font-size:16px}.day small{font-size:9.5px;margin-top:3px;font-weight:700}
+  .d-orange{background:#fff1e6;color:var(--orange)}.d-purple{background:#efe9ff;color:#7c3aed}
+  .d-pink{background:#ffe6ea;color:#e11d48}.d-red{background:#ffe8ea;color:#ef3b52}.d-blue{background:#e5f2ff;color:#1677e5}
+  .li>.lucide{color:#cfd5dd;width:18px}
+  .activity .ico{width:38px;height:38px}
+  .fin{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .fin-big{display:flex;align-items:baseline;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .fin-big b{font-size:24px;font-weight:700;letter-spacing:-.3px}
+  .chart{display:flex;align-items:flex-end;gap:7px;height:100px;margin-top:18px}
+  .chart div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .chart i{display:block;width:100%;background:#ffe4cc;border-radius:3px 3px 0 0;height:0;transition:height .9s cubic-bezier(.2,.8,.2,1)}
+  .chart div.cur i{background:var(--orange)}
+  .chart span{font-size:11px;color:var(--muted)}
+  .acc{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:center}
+  .acc+.acc{margin-top:10px}
+  .acc small{display:block;font-size:12px;color:var(--muted)}
+  .acc b{display:block;font-size:17px;margin:3px 0}
+  .acc em{font-style:normal;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .acc em::before{content:"";width:9px;height:9px;border-radius:50%;border:2.5px solid var(--dot)}
+  .action{display:flex;align-items:center;gap:12px;padding:6px 0;cursor:pointer;user-select:none}
+  .action .label{flex:1;font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .action input:checked~.label{color:var(--dim);text-decoration:line-through}
+  .tag{font-size:11.5px;font-weight:700;border-radius:6px;padding:5px 0;width:62px;text-align:center;flex:none}
+  .tag.today{background:rgba(246,181,30,.18);color:#ffc531}.tag.soon{background:#1f2630;color:#e3e7ec}.tag.date{background:#151b23;color:#e3e7ec}
+  @media (max-width:1400px){.row-2,.row-3{grid-template-columns:1fr 1fr}.row-2>:first-child,.row-3>:last-child{grid-column:1/-1}}
+  @media (max-width:980px){.row-2,.row-3{grid-template-columns:1fr}}
+  @media (max-width:560px){.fin{grid-template-columns:1fr}.sector{grid-template-columns:28px 1fr 1fr 44px}.sector .pct{display:none}.donut-wrap{flex-direction:column;align-items:stretch}.donut{align-self:center}}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Início',titleHtml:'Olá, <span id="hi">Sabrina</span>! 👋',subtitle:'Aqui está o panorama da Periférica hoje.'});
+document.addEventListener('pf:me',e=>document.getElementById('hi').textContent=e.detail.name.split(' ')[0]);
+const month=PF.monthLabel(new Date());
+
+const sectors=[
+  ['Comercial','users','orange',18,24],['Onboarding','copyright','purple',6,8],['Gestão (Social Media)','layout-grid','blue',28,42],
+  ['Projetos','folder-open','green',9,15],['Tráfego','megaphone','pink',12,20],['Copy','pen-line','lilac',14,22],['Design','circle-check','yellow',10,18]];
+const status=[['Em andamento',42,'var(--orange)'],['Para revisão',18,'var(--purple)'],['Aguardando aprovação',12,'var(--green)'],['Concluídas',20,'var(--blue)'],['Outros',4,'var(--gray)']];
+const deadlines=[['05','orange','Reuniões mensais com clientes','Prazo final: 10/11'],['15','purple','Pagamento do variável','Fechamento do mês'],['20','pink','Captações do mês','Prazo final: 20/11'],['25','red','Aprovações de conteúdos','Prazo final: 25/11'],['27','blue','Finalizar planejamento de dezembro','Prazo interno']];
+const activities=[['purple','mail','Emily finalizou a redação do Post 1 – Clínica Vida+','Copy / Gestão / Clínica Vida+','há 12 min'],['pink','target','Alex enviou para aprovação o banner – Real Pedras','Design / Projeto / Real Pedras','há 40 min'],['blue','music','Lucas publicou a campanha – Hydrolar','Tráfego / Campanhas / Hydrolar','há 2 horas'],['pink','user','Novo lead recebido – Instagram Ads','Comercial / Prospecção','há 3 horas'],['green','circle-check','Cliente aprovou o Post 3 – Elegance Cortinas','Gestão / Apostilas / Elegance Cortinas','há 4 horas']];
+const actions=[['Revisar atas dos clientes A1','Hoje','today'],['Liberar planejamento de novembro (Squad B)','Hoje','today'],['Alinhar campanha de fim de ano','Hoje','today'],['Acompanhamento de resultados – Elegance','Amanhã','soon'],['Reunião interna – processos','Amanhã','soon'],['Enviar relatório mensal para clientes','06/11','date'],['Ajustes no site – Parque das Águas','07/11','date']];
+
+const total=status.reduce((a,s)=>a+s[1],0);let off=0;
+const donut=status.map(([,v,c])=>{const len=v/total*100,seg=`<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${c}" stroke-width="5" stroke-dasharray="${Math.max(len-.8,0)} ${100-Math.max(len-.8,0)}" stroke-dashoffset="${-off}"/>`;off+=len;return seg;}).join('');
+
+content.innerHTML=`
+<p class="muted small right" style="margin:-14px 0 14px">${PF.today()}</p>
+<section class="grid g5 mb">
+  ${PF.kpi({icon:'users',color:'orange',value:'28',delta:'↑ 12%',label:'Clientes ativos',sub:'vs. mês anterior'})}
+  ${PF.kpi({icon:'square-check',color:'purple',value:'96',delta:'↑ 8%',deltaKind:'warn',label:'Tarefas em andamento',sub:'vs. mês anterior'})}
+  ${PF.kpi({icon:'circle-check',color:'green',value:'42',delta:'↑ 15%',label:'Tarefas concluídas (mês)',sub:'vs. mês anterior'})}
+  ${PF.kpi({icon:'send',color:'blue',value:'6',delta:'0%',deltaKind:'flat',label:'Campanhas ativas',sub:'vs. mês anterior'})}
+  ${PF.kpi({icon:'circle-dollar-sign',color:'pink',value:'R$ 48.500',delta:'↑ 15%',label:'Faturamento do mês',sub:'vs. mês anterior'})}
+</section>
+<section class="row-2">
+  <div class="card fade">
+    <div class="card-head"><div><h2>Andamento por setor</h2><p>Visão geral das tarefas do mês</p></div><span class="select">${month}<i data-lucide="chevron-down"></i></span></div>
+    <div class="sectors">${sectors.map(([n,i,c,d,t])=>{const p=Math.round(d/t*100);return `<div class="sector"><div class="ico sm c-${c}"><i data-lucide="${i}"></i></div><div>${n}</div><div class="bar"><span data-w="${p}" style="width:0;background:var(--${c})"></span></div><div class="num">${d}/${t}</div><div class="pct">${p}%</div></div>`;}).join('')}</div>
+  </div>
+  <div class="card fade">
+    <div class="card-head"><div><h2>Tarefas por status</h2><p>Total de ${total} tarefas</p></div></div>
+    <div class="donut-wrap">
+      <div class="donut"><svg viewBox="0 0 42 42">${donut}</svg><div class="donut-center"><b>${total}</b><span>tarefas</span></div></div>
+      <ul class="legend">${status.map(([n,v,c])=>`<li><i style="background:${c}"></i>${n}<b>${v}</b></li>`).join('')}</ul>
+    </div>
+  </div>
+  <div class="card fade">
+    <div class="card-head"><h2>Prazos importantes</h2><a class="link" href="agenda.html">Ver todos <i data-lucide="arrow-right"></i></a></div>
+    ${deadlines.map(([d,c,t,s])=>`<a class="li" href="agenda.html"><div class="day d-${c}"><b>${d}</b><small>NOV</small></div><div class="t"><div>${t}</div><span>${s}</span></div><i data-lucide="chevron-right"></i></a>`).join('')}
+  </div>
+</section>
+<section class="row-3">
+  <div class="card fade">
+    <div class="card-head"><h2>Últimas atividades</h2><a class="link" href="#">Ver todas <i data-lucide="arrow-right"></i></a></div>
+    ${activities.map(([c,i,t,s,w])=>`<div class="li activity"><div class="ico round c-${c}"><i data-lucide="${i}"></i></div><div class="t"><div>${t}</div><span>${s}</span></div><span class="muted small nowrap">${w}</span></div>`).join('')}
+  </div>
+  <div class="card fade">
+    <div class="card-head"><h2>Visão financeira</h2><span class="select">${month}<i data-lucide="chevron-down"></i></span></div>
+    <div class="fin">
+      <div>
+        <div class="small soft">Faturamento</div>
+        <div class="fin-big"><b>R$ 48.500</b><span class="delta up">↑ 15%</span></div>
+        <div class="muted tiny">vs. mês anterior</div>
+        <div class="chart">${[['Jun',40],['Jul',48],['Ago',62],['Set',70],['Out',56],['Nov',100]].map(([m,h],i,a)=>`<div class="${i===a.length-1?'cur':''}"><i data-h="${h}"></i><span>${m}</span></div>`).join('')}</div>
+      </div>
+      <div>
+        <div class="acc"><div class="ico md c-yellow"><i data-lucide="clock"></i></div><div><small>Contas a receber</small><b>R$ 32.200</b><em style="--dot:var(--yellow)">12 títulos</em></div></div>
+        <div class="acc"><div class="ico md c-pink"><i data-lucide="wallet"></i></div><div><small>Contas a pagar</small><b>R$ 8.450</b><em style="--dot:var(--pink)">6 títulos</em></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="card fade">
+    <div class="card-head"><h2>Próximas ações</h2><a class="link" href="#">Ver todas <i data-lucide="arrow-right"></i></a></div>
+    ${actions.map(([t,tag,k])=>`<label class="action"><input type="checkbox" class="chk"><span class="label">${t}</span><span class="tag ${k}">${tag}</span></label>`).join('')}
+  </div>
+</section>`;
+PF.icons();PF.animateBars();
+requestAnimationFrame(()=>setTimeout(()=>document.querySelectorAll('.chart i').forEach(b=>b.style.height=`calc(${b.dataset.h}% - 18px)`),150));
+</script>
+</body>
+</html>

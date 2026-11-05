@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Contratos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .type{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;padding:22px}
+  .type.g{background:linear-gradient(135deg,rgba(139,92,246,.16),var(--panel))}
+  .type.p{background:linear-gradient(135deg,rgba(255,88,11,.14),var(--panel))}
+  .type h2{font-size:20px;margin:10px 0 6px}
+  .type p{color:var(--soft);font-size:13px;line-height:1.5}
+  .type ul{list-style:none;border-left:1px solid var(--line-2);padding-left:18px;display:flex;flex-direction:column;gap:10px;font-size:13px}
+  .type ul small{color:var(--muted);display:block;margin-bottom:2px}
+  .type li{display:flex;gap:8px;align-items:center}
+  .type li .lucide{width:15px;color:var(--muted)}
+  .type .more{margin-top:14px;display:inline-flex}
+  .flow .step .lucide{width:22px;height:22px;color:var(--orange)}
+  @media (max-width:700px){.type{grid-template-columns:1fr}.type ul{border-left:0;padding-left:0}}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Contratos',subtitle:'Modelos, elaboração, assinatura e acompanhamento.',crumbs:[['Clientes'],['Contratos']],search:'Buscar cliente ou contrato...',
+  actions:`<button class="btn btn-primary" id="newC"><i data-lucide="plus"></i>Novo contrato</button>`});
+const MODELS={Gestão:['Gestão completa','Gestão sem social media','Gestão focada em tráfego','Gestão com produção de vídeo'],Projetos:['Website institucional','Website catálogo','E-commerce','Identidade visual','Outros projetos']};
+const ST={elab:['Em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Assinado','green'],canc:['Cancelado','pink']};
+let rows=[
+  ['Clínica Vida+','Saúde / Estética','Gestão','Gestão completa','aguard','Tiago','28/10/2026'],
+  ['Real Pedras','Construção','Projetos','Website institucional','elab','João','27/10/2026'],
+  ['Elegance Cortinas','Decoração','Gestão','Gestão sem social media','assin','Sabrina','24/10/2026'],
+  ['M2 Uniformes','Varejo','Projetos','E-commerce','assin','Tiago','20/10/2026'],
+  ['Estação Lanches','Alimentação','Gestão','Gestão focada em tráfego','assin','João','15/10/2026'],
+  ['Lojas Dallas','Varejo','Gestão','Gestão completa','canc','Sabrina','02/10/2026'],
+];
+let tab='all';
+function render(){
+  const list=rows.filter(r=>tab==='all'||r[4]===tab);
+  const n=k=>rows.filter(r=>r[4]===k).length;
+  content.innerHTML=`
+  <section class="grid g2 mb">
+    ${[['g','Gestão','users','purple','Contratos para serviços recorrentes de marketing, como gestão de redes sociais, conteúdo, tráfego e presença digital.'],['p','Projetos','laptop','orange','Contratos para implementação de projetos como websites, e-commerce, identidade visual e outros.']].map(([k,t,i,c,d])=>`
+    <div class="card type ${k} fade"><div><div class="ico c-${c}"><i data-lucide="${i}"></i></div><h2>${t}</h2><p>${d}</p><button class="btn btn-ghost btn-sm more" data-model="${t}">Ver modelos de ${t.toLowerCase()} <i data-lucide="arrow-right"></i></button></div>
+      <ul><small>Principais modelos:</small>${MODELS[t].map(m=>`<li><i data-lucide="file-text"></i>${m}</li>`).join('')}</ul></div>`).join('')}
+  </section>
+  <div class="card mb">
+    <div class="card-head"><h2>Contratos em andamento</h2>${PF.demo()}</div>
+    <div class="tabs">${[['all','Todos',rows.length],['elab','Em elaboração',n('elab')],['aguard','Aguardando assinatura',n('aguard')],['assin','Assinados',n('assin')],['canc','Cancelados',n('canc')]].map(([k,l,c])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${c}</span></button>`).join('')}</div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Tipo de contrato</th><th>Modelo utilizado</th><th>Status</th><th>Responsável</th><th>Data de envio</th><th class="right">Ações</th></tr></thead><tbody>
+    ${list.map(r=>`<tr><td><div class="who">${PF.chip(r[0])}<div><b>${r[0]}</b><small>${r[1]}</small></div></div></td><td>${r[2]}</td><td>${r[3]}</td><td>${PF.badge(...ST[r[4]])}</td><td><div class="row">${PF.avatar(r[5])}${r[5]}</div></td><td>${r[6]}</td>
+      <td class="right">${r[4]==='aguard'?'<button class="btn btn-ghost btn-sm" data-remind>Lembrar cliente</button>':r[4]==='assin'?'<a class="btn btn-ghost btn-sm" href="onboarding.html">Ver onboarding</a>':'<button class="icon-btn"><i data-lucide="ellipsis-vertical"></i></button>'}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card"><div class="card-head"><div><h2>Fluxo do contrato</h2><p>Do fechamento no CRM ao onboarding do cliente.</p></div></div>
+    <div class="flow">${[['handshake','Negociação fechada','O comercial clica em Gerar contrato.'],['file-text','Selecionar modelo','Escolhe o modelo de Gestão ou Projetos.'],['pencil','Preencher contrato','Dados do cliente já vêm do CRM, com campos editáveis.'],['send','Enviar para assinatura','Documento gerado e enviado ao cliente.'],['check-check','Contrato assinado','Documento armazenado no sistema.'],['users','Encaminhar ao onboarding','Cliente segue para o setor correspondente (Gestão ou Projetos).']].map(([i,t,d],k,a)=>`<div class="step"><div class="row"><span class="n">${k+1}</span><i data-lucide="${i}"></i></div><b>${t}</b><p>${d}</p></div>${k<a.length-1?'<i data-lucide="arrow-right" class="arrow"></i>':''}`).join('')}</div>
+  </div>`;
+  PF.icons();
+  content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();});
+  content.querySelectorAll('[data-remind]').forEach(b=>b.onclick=()=>PF.toast('Lembrete de assinatura enviado.','ok'));
+  content.querySelectorAll('[data-model]').forEach(b=>b.onclick=()=>newContract(b.dataset.model));
+}
+function newContract(type='Gestão'){
+  const m=PF.modal(`<div class="modal-head"><div><h3>Novo contrato</h3><p class="muted small">Os dados do cliente vêm do CRM e podem ser editados.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  <form class="stack" id="nc">
+    <label class="field"><span>Cliente (negociação fechada)</span><select class="select-in" name="c"><option>Parque das Águas</option><option>DZAM Uniformes</option></select></label>
+    <div class="grid g2"><label class="field"><span>Tipo</span><select class="select-in" name="t" id="t">${Object.keys(MODELS).map(k=>`<option ${k===type?'selected':''}>${k}</option>`).join('')}</select></label>
+    <label class="field"><span>Modelo</span><select class="select-in" name="m" id="m"></select></label></div>
+    <div class="grid g2"><label class="field"><span>Valor mensal / total</span><input class="input" name="v" placeholder="R$ 2.500,00"></label><label class="field"><span>Vigência</span><select class="select-in"><option>12 meses</option><option>6 meses</option><option>Projeto único</option></select></label></div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary"><i data-lucide="send"></i>Gerar e enviar para assinatura</button></div></form>`);
+  const t=m.el.querySelector('#t'),mm=m.el.querySelector('#m');const fill=()=>mm.innerHTML=MODELS[t.value].map(x=>`<option>${x}</option>`).join('');t.onchange=fill;fill();
+  m.el.querySelector('#nc').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));rows.unshift([d.c,'—',d.t,d.m,'aguard',PF.user.name.split(' ')[0],new Date().toLocaleDateString('pt-BR')]);m.close();tab='all';render();PF.toast('Contrato enviado para assinatura.','ok');};
+}
+document.getElementById('newC').onclick=()=>newContract();
+render();
+</script>
+</body>
+</html>

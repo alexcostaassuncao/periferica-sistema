@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Projetos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Projetos',subtitle:'Websites, e-commerce, identidade visual e outros projetos.',crumbs:[['Operação'],['Projetos']],search:'Buscar projeto...',
+  actions:`<button class="btn btn-primary" id="np"><i data-lucide="plus"></i>Novo projeto</button>`});
+const COLS=[['briefing','Briefing','var(--blue)'],['design','Design','var(--purple)'],['dev','Desenvolvimento','var(--orange)'],['revisao','Revisão do cliente','var(--yellow)'],['entregue','Entregue','var(--green)']];
+let items=[['Real Pedras','Website institucional','dev','Fernando',40,'15/12'],['DZAM Uniformes','Catálogo','design','Fernando',20,'30/11'],['ELOWAY APP','Landing page','briefing','Fernando',5,'10/12'],['Parque das Águas','Website institucional','entregue','Fernando',100,'28/10'],['M2 Uniformes','E-commerce','revisao','Fernando',85,'20/11'],['Pizzadoro','Identidade visual','design','Djenifer',35,'05/12']].map((r,i)=>({id:'p'+i,client:r[0],type:r[1],col:r[2],who:r[3],p:r[4],due:r[5]}));
+function render(){
+  content.innerHTML=`
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'folder-kanban',color:'orange',value:String(items.length),label:'Projetos ativos'})}
+    ${PF.kpi({icon:'code',color:'blue',value:String(items.filter(i=>i.col==='dev').length),label:'Em desenvolvimento'})}
+    ${PF.kpi({icon:'eye',color:'yellow',value:String(items.filter(i=>i.col==='revisao').length),label:'Em revisão do cliente'})}
+    ${PF.kpi({icon:'circle-check',color:'green',value:String(items.filter(i=>i.col==='entregue').length),label:'Entregues no mês'})}
+  </section>
+  <div class="row between mb"><span class="muted small">Arraste os cards para mudar a etapa.</span>${PF.demo()}</div>
+  <div class="kanban">${COLS.map(([k,l,c])=>{const it=items.filter(i=>i.col===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${l}<span class="n">${it.length}</span></div>
+    ${it.map(i=>`<div class="kcard" data-id="${i.id}"><div class="row">${PF.chip(i.client)}<div><b>${i.client}</b><div class="muted tiny">${i.type}</div></div></div><div class="progress"><div class="bar"><span style="width:${i.p}%"></span></div><span class="tiny">${i.p}%</span></div><div class="meta"><i data-lucide="calendar"></i>${i.due}<span style="margin-left:auto">${PF.avatar(i.who)}</span></div></div>`).join('')}</div>`;}).join('')}</div>`;
+  PF.icons();
+  PF.kanban(content.querySelector('.kanban'),(id,col)=>{items.find(i=>i.id===id).col=col;PF.toast('Projeto movido para '+COLS.find(c=>c[0]===col)[1]+'.','ok');render();});
+}
+document.getElementById('np').onclick=()=>{const c=prompt('Cliente do projeto:');if(!c)return;items.push({id:'n'+Date.now(),client:c,type:'Novo projeto',col:'briefing',who:'Fernando',p:0,due:'—'});render();};
+render();
+</script>
+</body>
+</html>

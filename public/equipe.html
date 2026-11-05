@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Equipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Usuários',subtitle:'Gestão dos usuários, cargos e acessos.',crumbs:[['Equipe'],['Usuários']],search:'Buscar pessoa...',
+  actions:`<button class="btn btn-primary"><i data-lucide="user-plus"></i>Convidar usuário</button>`});
+const people=[['Sabrina','Direção','Administrador','Todos'],['Tiago Dal Molin','Direção / Financeiro','Administrador','Todos'],['Juliana Ferreira','Consultora','Gestão','C1'],['Carla Mendes','Copy','Produção','C1'],['Djenifer Lima','Design','Produção','C1, C2'],['Lucas Teixeira','Tráfego','Produção','Todos'],['Fernando','Projetos','Projetos','—'],['João','Comercial','Comercial','—']];
+content.innerHTML=`
+<div class="note info mb"><i data-lucide="shield-check"></i><div><b>Acesso por permissão:</b> o menu é único, mas cada pessoa só vê as áreas da sua função. O login de cada usuário entra na próxima etapa. Hoje o acesso é pelo administrador definido na Vercel.</div></div>
+<div class="card"><div class="card-head"><h2>Equipe</h2>${PF.demo()}</div>
+<div class="table-wrap"><table class="tbl"><thead><tr><th>Pessoa</th><th>Cargo</th><th>Perfil de acesso</th><th>Squads</th><th>Situação</th></tr></thead><tbody>
+${people.map(([n,c,a,s])=>`<tr><td><div class="who">${PF.avatar(n,'md')}<b>${n}</b></div></td><td>${c}</td><td>${PF.badge(a,a==='Administrador'?'orange':'gray')}</td><td>${s}</td><td>${PF.badge('Ativo','green')}</td></tr>`).join('')}
+</tbody></table></div></div>`;
+PF.icons();
+</script>
+</body>
+</html>

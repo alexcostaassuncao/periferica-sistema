@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .stepn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none;background:var(--panel-3);border:2px solid var(--line-2)}
+  .stepn.done{background:var(--orange);border-color:var(--orange)}
+  .stepn.now{background:rgba(255,88,11,.25);border-color:var(--orange)}
+  .check{display:grid;grid-template-columns:40px 1.6fr 1fr 110px 140px 30px;gap:14px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .check+.check{margin-top:8px}
+  .check b{font-size:13.5px}.check p{font-size:12px;color:var(--muted);margin-top:2px}
+  .check .who{font-size:12.5px}
+  .check .who small{display:block;color:var(--muted);font-size:11px}
+  .check .sub{grid-column:2/-1;display:none;border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+  .check.open .sub{display:block}
+  .sub label{display:flex;gap:9px;align-items:center;font-size:12.5px;padding:4px 0}
+  .countdown{display:flex;align-items:center;gap:12px;border:1px solid rgba(255,88,11,.5);background:rgba(255,88,11,.1);border-radius:12px;padding:12px 16px}
+  .countdown .lucide{color:var(--orange);width:28px;height:28px}
+  .countdown b{font-size:18px;display:block}
+  .countdown small{color:var(--muted);font-size:12px}
+  @media (max-width:980px){.check{grid-template-columns:40px 1fr}.check>:nth-child(n+3):not(.sub){grid-column:2}}
+</style>
+</head>
+<body>
+<script>
+const id=new URLSearchParams(location.search).get('id');
+const content=PF.shell(id?{title:'Clínica Vida+',crumbs:[['Onboarding','onboarding.html'],['Clínica Vida+']],search:false}:
+  {title:'Onboarding',subtitle:'Acompanhe a ativação dos novos clientes',crumbs:[['Operação'],['Onboarding']],search:'Buscar cliente...'});
+const ST={and:['Em andamento','solid-blue'],aguard:['Aguardando cliente','solid-amber'],pend:['Pendente','solid-red'],conc:['Concluído','solid-green']};
+const rows=[['Clínica Vida+','Saúde / Estética','Gestão','C1','Consultora','20/10',60,'and'],['Mercado Doce','Alimentos','Gestão','C2','Consultora','22/10',85,'aguard'],['Real Pedras','Revestimentos','Projetos','','Fernando','21/10',40,'and'],['DZAM Uniformes','Uniformes','Projetos','','Fernando','23/10',20,'pend'],['Elegance Cortinas','Decoração','Gestão','C3','Consultora','20/10',100,'conc'],['Estação Lanches','Alimentação','Gestão','C1','Consultora','24/10',30,'and'],['ELOWAY APP','Tecnologia','Projetos','','Fernando','25/10',10,'pend'],['Airsell','Indústria','Gestão','C2','Consultora','26/10',5,'pend']];
+let tab='all';
+
+function list(){
+  const vis=rows.filter(r=>tab==='all'||r[2]===tab);
+  const bar=p=>`<div class="progress"><div class="bar"><span data-w="${p}" style="width:0;background:${p>=80?'var(--green)':p<25?'var(--pink)':'var(--orange)'}"></span></div><span class="small">${p}%</span></div>`;
+  content.innerHTML=`
+  <div class="note info mb"><i data-lucide="info"></i><div>Os clientes vão automaticamente para o onboarding depois da assinatura do contrato. Prazo de ativação: até 10 dias úteis.</div></div>
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'users',color:'orange',value:String(rows.length),label:'Em onboarding',arrow:true,click:'all',active:tab==='all'})}
+    ${PF.kpi({icon:'bar-chart-3',color:'blue',value:String(rows.filter(r=>r[2]==='Gestão').length),label:'Gestão',arrow:true,click:'Gestão',active:tab==='Gestão'})}
+    ${PF.kpi({icon:'folder',color:'purple',value:String(rows.filter(r=>r[2]==='Projetos').length),label:'Projetos',arrow:true,click:'Projetos',active:tab==='Projetos'})}
+    ${PF.kpi({icon:'clock',color:'green',value:'6 dias úteis',label:'Média de ativação'})}
+  </section>
+  <div class="card">
+    <div class="row between wrap"><div class="tabs" style="border:0;margin:0">${[['all','Todos'],['Gestão','Gestão'],['Projetos','Projetos']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-kpi="${k}">${l} (${k==='all'?rows.length:rows.filter(r=>r[2]===k).length})</button>`).join('')}</div>${PF.demo()}</div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Serviço</th><th>Squad</th><th>Responsável</th><th>Início</th><th>Prazo</th><th>Progresso</th><th>Status</th><th class="right">Ações</th></tr></thead><tbody>
+    ${vis.map(r=>`<tr><td><div class="who">${PF.chip(r[0])}<div><b>${r[0]}</b><small>${r[1]}</small></div></div></td><td>${PF.badge(r[2],r[2]==='Gestão'?'blue':'purple')}</td><td>${r[3]?PF.badge(r[3],'orange'):'–'}</td><td>${r[4]}</td><td>${r[5]}</td><td>10 dias</td><td>${bar(r[6])}</td><td>${PF.badge(...ST[r[7]])}</td><td class="right"><a class="btn btn-ghost btn-sm" href="onboarding.html?id=1">Ver</a></td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+  PF.icons();PF.animateBars();
+  content.querySelectorAll('[data-kpi]').forEach(b=>b.onclick=()=>{tab=b.dataset.kpi;list();});
+}
+
+function detail(){
+  const steps=[
+    ['Recepção e agendamento','Criar grupo, enviar boas-vindas e agendar a reunião inicial.','Lucas','Atendimento','Dia 1','conc',['Criar grupo no WhatsApp','Enviar boas-vindas','Agendar reunião inicial']],
+    ['Reunião de onboarding','Entendimento do negócio, objetivos, necessidades, coleta de materiais e acessos.','Consultora','Responsável','Até dia 3','and',['Realizar reunião','Registrar ata','Coletar logos e materiais','Cadastrar acessos no cofre']],
+    ['Estratégia e configurações','Copy, designer e tráfego trabalham em paralelo na proposta estratégica e nas configurações.','Copy, Designer e Tráfego','Equipe','Dias 3 a 7','pend',['Linha editorial (Copy)','Identidade do feed (Design)','Configurar BM e pixel (Tráfego)','Conectar Instagram e Facebook no sistema']],
+    ['Apresentação estratégica','Consolidação da estratégia em uma apresentação padronizada para o cliente.','Copy, Designer e Tráfego','Equipe','Dias 7 a 9','pend',['Montar apresentação','Revisão da consultora']],
+    ['Ativação','Apresentação ao cliente, registro dos alinhamentos e liberação para a rotina de Gestão.','Consultora','Responsável','Até dia 10','pend',['Apresentar ao cliente','Registrar alinhamentos','Liberar para Gestão']],
+  ];
+  content.innerHTML=`
+  <div class="card mb"><div class="row between wrap" style="gap:18px">
+    <div class="row" style="gap:14px">${PF.chip('Clínica Vida+','lg')}<div><div class="row"><h2 style="font-size:22px">Clínica Vida+</h2>${PF.badge('Em andamento','green')}</div><div class="muted small" style="margin-top:4px">Saúde / Estética · Squad C1 · Início: 20/10 · Prazo: 10 dias úteis</div></div></div>
+    <div style="min-width:240px;flex:1;max-width:380px"><div class="small muted" style="margin-bottom:6px">Progresso geral</div><div class="progress"><div class="bar"><span id="pg" style="width:0"></span></div><b id="pgv">0%</b></div></div>
+    <div class="countdown"><i data-lucide="calendar-clock"></i><div><small>Faltam</small><b>4 dias úteis</b></div></div>
+  </div></div>
+  <div class="tabs" data-tabs><button data-tab="c" class="on">Checklist</button><button data-tab="a">Arquivos</button><button data-tab="m">Comunicações</button><button data-tab="h">Histórico</button></div>
+  <section data-pane="c">${steps.map(([t,d,who,role,prazo,st,subs],i)=>`
+    <div class="check ${st==='and'?'open':''}">
+      <span class="stepn ${st==='conc'?'done':st==='and'?'now':''}">${i+1}</span>
+      <div><b>${t}</b><p>${d}</p></div>
+      <div class="row who">${who.includes(',')?'<span class="avatars">'+['Copy','Designer','Tráfego'].map(n=>PF.avatar(n)).join('')+'</span>':PF.avatar(who)}<div>${who}<small>${role}</small></div></div>
+      <div class="small">${prazo}</div>
+      <div>${PF.badge(...ST[st])}</div>
+      <button class="icon-btn" data-toggle aria-label="Detalhes"><i data-lucide="chevron-down"></i></button>
+      <div class="sub">${subs.map((s,k)=>`<label><input type="checkbox" class="chk" ${st==='conc'||(st==='and'&&k<2)?'checked':''}>${s}</label>`).join('')}</div>
+    </div>`).join('')}</section>
+  ${['a','m','h'].map(k=>`<section data-pane="${k}" hidden class="card empty"><i data-lucide="construction"></i><div>Esta aba entra na próxima etapa.</div></section>`).join('')}`;
+  PF.icons();PF.tabs(content);
+  const upd=()=>{const all=content.querySelectorAll('.sub .chk'),done=[...all].filter(c=>c.checked).length,p=Math.round(done/all.length*100);content.querySelector('#pg').style.width=p+'%';content.querySelector('#pgv').textContent=p+'%';};
+  content.querySelectorAll('.sub .chk').forEach(c=>c.onchange=upd);setTimeout(upd,100);
+  content.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>b.closest('.check').classList.toggle('open'));
+}
+id?detail():list();
+</script>
+</body>
+</html>

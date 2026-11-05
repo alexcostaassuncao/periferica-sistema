@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Publicações</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .thumb-ph{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;background:var(--panel-3);color:var(--muted);flex:none}
+  .fmt{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .fmt label{border:1px solid var(--line-2);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;font-size:12.5px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--soft)}
+  .fmt input{display:none}
+  .fmt label:has(input:checked){border-color:var(--orange);background:var(--orange-soft);color:#fff}
+  .nets{display:flex;gap:10px;flex-wrap:wrap}
+  .nets label{display:flex;align-items:center;gap:9px;border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13px}
+  .nets label:has(input:checked){border-color:var(--orange)}
+  .nets label.off{opacity:.45;cursor:not-allowed}
+  .drop{border:1.5px dashed var(--line-2);border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:border-color .15s}
+  .drop.over,.drop:hover{border-color:var(--orange);color:var(--soft)}
+  .medias{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .m{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;background:var(--panel-3);display:grid;place-items:center;color:var(--muted)}
+  .m img,.m video{width:100%;height:100%;object-fit:cover}
+  .m .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.7);display:grid;place-items:center;color:#fff}
+  .m .x .lucide{width:13px}
+  .m .n{position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.7);border-radius:5px;font-size:10.5px;padding:1px 6px;color:#fff}
+  .m .up{position:absolute;inset:auto 0 0 0;height:4px;background:var(--orange)}
+  .counter{font-size:11.5px;color:var(--muted);text-align:right}
+  .when{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .st{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+  .st small{font-size:11px;color:#ff9aa9;max-width:260px;line-height:1.35}
+  .acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+  .legend-row{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--soft)}
+  .legend-row span{display:flex;align-items:center;gap:6px}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Publicações',subtitle:'Agende e publique os conteúdos aprovados nas redes dos clientes.',crumbs:[['Operação'],['Publicações']],search:'Buscar publicação, cliente...',
+  actions:`<button class="btn btn-primary" id="newPub"><i data-lucide="plus"></i>Nova publicação</button>`});
+
+const STATUS={
+  queued:['Agendado','solid-blue'],processing:['Processando','solid-amber'],publishing:['Publicando','solid-amber'],
+  published:['Publicado','solid-green'],unconfirmed:['Confirmar','orange'],failed:['Falhou','solid-red'],cancelled:['Cancelado','gray'],
+};
+const FORMAT={post:'Post',carousel:'Carrossel',reels:'Reels',stories:'Stories'};
+const COLOR={published:'var(--green)',queued:'var(--blue)',processing:'var(--yellow)',publishing:'var(--yellow)',failed:'var(--pink)',unconfirmed:'var(--orange)',cancelled:'var(--gray)'};
+let state={pubs:[],clients:[],view:'list',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),filters:{net:'',status:'',client:''},q:'',scheduler:true};
+
+const thumbUrl=m=>{
+  if(!m)return '';
+  if(m.kind==='image')return m.url;
+  if(m.url.includes('res.cloudinary.com'))return m.url.replace('/upload/','/upload/so_0,w_120/').replace(/\.\w+$/,'.jpg');
+  return '';
+};
+const thumb=p=>{const t=thumbUrl(p.media[0]);return t?`<img class="thumb" src="${PF.esc(t)}" alt="" loading="lazy">`:`<span class="thumb-ph"><i data-lucide="${p.media[0]?.kind==='video'?'film':'image'}"></i></span>`;};
+
+async function load(){
+  const from=new Date(state.month.getFullYear(),state.month.getMonth()-1,1).getTime(),to=new Date(state.month.getFullYear(),state.month.getMonth()+2,1).getTime();
+  try{
+    const [p,c]=await Promise.all([PF.api(`/api/publications?from=${from}&to=${to}`),PF.api('/api/clients')]);
+    state.pubs=p.publications;state.clients=c.clients;state.scheduler=p.schedulerReady;
+  }catch(e){PF.toast(e.message,'err');}
+  render();
+}
+
+function rows(){
+  // Uma linha por rede (como no PDF): a mesma publicação aparece no Instagram e no Facebook.
+  const m0=state.month.getTime(),m1=new Date(state.month.getFullYear(),state.month.getMonth()+1,1).getTime();
+  const out=[];
+  for(const p of state.pubs){
+    if(p.due_at<m0||p.due_at>=m1)continue;
+    if(state.filters.client&&p.client_id!==state.filters.client)continue;
+    const q=state.q.toLowerCase();
+    if(q&&!(p.title+' '+p.client_name+' '+p.caption).toLowerCase().includes(q))continue;
+    for(const t of p.targets){
+      if(state.filters.net&&t.network!==state.filters.net)continue;
+      if(state.filters.status&&t.status!==state.filters.status)continue;
+      out.push({p,t});
+    }
+  }
+  return out.sort((a,b)=>a.p.due_at-b.p.due_at);
+}
+
+function render(){
+  const monthTargets=state.pubs.filter(p=>p.due_at>=state.month.getTime()&&p.due_at<new Date(state.month.getFullYear(),state.month.getMonth()+1,1).getTime()).flatMap(p=>p.targets);
+  const count=s=>monthTargets.filter(t=>s.includes(t.status)).length;
+  const list=rows();
+  content.innerHTML=`
+  ${state.scheduler?'':`<div class="note mb"><i data-lucide="clock-alert"></i><div><b>O disparo automático ainda não rodou.</b> "Publicar agora" já funciona; para os agendamentos saírem sozinhos, ative o agendador do GitHub (passo a passo no README).</div></div>`}
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'calendar-clock',color:'blue',value:String(count(['queued'])),label:'Agendados',click:'queued',active:state.filters.status==='queued'})}
+    ${PF.kpi({icon:'circle-check',color:'green',value:String(count(['published'])),label:'Publicados este mês',click:'published',active:state.filters.status==='published'})}
+    ${PF.kpi({icon:'loader',color:'yellow',value:String(count(['processing','publishing','unconfirmed'])),label:'Em processamento',click:'processing',active:state.filters.status==='processing'})}
+    ${PF.kpi({icon:'triangle-alert',color:'pink',value:String(count(['failed'])),label:'Com falha',click:'failed',active:state.filters.status==='failed'})}
+  </section>
+  <div class="card">
+    <div class="filters">
+      <button class="icon-btn" id="prev" aria-label="Mês anterior"><i data-lucide="chevron-left"></i></button>
+      <b style="min-width:150px;text-align:center">${PF.monthLabel(state.month)}</b>
+      <button class="icon-btn" id="next" aria-label="Próximo mês"><i data-lucide="chevron-right"></i></button>
+      ${PF.select('fNet','Rede social',[['','Rede social: Todas'],['instagram','Instagram'],['facebook','Facebook']])}
+      ${PF.select('fStatus','Status',[['','Status: Todos'],...Object.entries(STATUS).map(([k,v])=>[k,v[0]])])}
+      ${PF.select('fClient','Cliente',[['','Cliente: Todos'],...state.clients.map(c=>[c.id,c.name])])}
+      <a class="link" href="#" id="clear">Limpar filtros</a>
+      <div style="margin-left:auto" class="toggle"><button data-view="list" class="${state.view==='list'?'on':''}"><i data-lucide="list" style="width:15px"></i> Lista</button><button data-view="cal" class="${state.view==='cal'?'on':''}"><i data-lucide="calendar-days" style="width:15px"></i> Calendário</button></div>
+    </div>
+    ${state.view==='list'?table(list):calendar()}
+  </div>`;
+  const f=state.filters;
+  content.querySelector('#fNet').value=f.net;content.querySelector('#fStatus').value=f.status;content.querySelector('#fClient').value=f.client;
+  content.querySelector('#fNet').onchange=e=>{f.net=e.target.value;render();};
+  content.querySelector('#fStatus').onchange=e=>{f.status=e.target.value;render();};
+  content.querySelector('#fClient').onchange=e=>{f.client=e.target.value;render();};
+  content.querySelector('#clear').onclick=e=>{e.preventDefault();state.filters={net:'',status:'',client:''};render();};
+  content.querySelector('#prev').onclick=()=>{state.month=new Date(state.month.getFullYear(),state.month.getMonth()-1,1);load();};
+  content.querySelector('#next').onclick=()=>{state.month=new Date(state.month.getFullYear(),state.month.getMonth()+1,1);load();};
+  content.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{state.view=b.dataset.view;render();});
+  content.querySelectorAll('[data-kpi]').forEach(k=>k.onclick=()=>{f.status=f.status===k.dataset.kpi?'':k.dataset.kpi;render();});
+  content.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>act(b.dataset.act,b.dataset.id,b.dataset.pub));
+  content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>details(b.dataset.open));
+  PF.icons();
+}
+
+function actions(p,t){
+  const b=(act,label,cls='btn-ghost',icon='')=>`<button class="btn ${cls} btn-sm" data-act="${act}" data-id="${t.id}" data-pub="${p.id}">${icon?`<i data-lucide="${icon}"></i>`:''}${label}</button>`;
+  if(t.status==='published')return t.permalink?`<a class="btn btn-ghost btn-sm" href="${PF.esc(t.permalink)}" target="_blank" rel="noopener">Ver publicação <i data-lucide="external-link"></i></a>`:'<span class="muted small">No ar</span>';
+  if(t.status==='failed')return b('retry','Tentar de novo','btn-outline','rotate-ccw');
+  if(t.status==='cancelled')return b('retry','Publicar agora','btn-ghost','send');
+  if(t.status==='unconfirmed')return b('confirm','Já saiu','btn-ghost','check')+b('retry','Reenviar','btn-outline');
+  if(t.status==='queued'&&p.due_at>Date.now())return b('cancel','Cancelar');
+  return b('process','Atualizar','btn-ghost','refresh-cw');
+}
+
+function table(list){
+  if(!list.length)return `<div class="empty"><i data-lucide="send"></i><div>Nenhuma publicação neste mês com esses filtros.</div><button class="btn btn-primary" style="margin-top:12px" onclick="openNew()"><i data-lucide="plus"></i>Nova publicação</button></div>`;
+  return `<div class="table-wrap"><table class="tbl"><thead><tr><th>Conteúdo</th><th>Cliente</th><th>Rede social</th><th>Data</th><th>Horário</th><th>Status</th><th class="right">Ação</th></tr></thead><tbody>
+  ${list.map(({p,t})=>{const [label,color]=STATUS[t.status]||[t.status,'gray'];return `<tr>
+    <td><button class="who" data-open="${p.id}" style="text-align:left">${thumb(p)}<div><b>${PF.esc(p.title||FORMAT[p.format])}</b><small>${FORMAT[p.format]}${p.media.length>1?' · '+p.media.length+' mídias':''}</small></div></button></td>
+    <td>${PF.esc(p.client_name)}</td>
+    <td>${PF.net(t.network)}</td>
+    <td class="nowrap">${PF.fmtDate(p.due_at)}</td>
+    <td>${PF.fmtTime(p.due_at)}</td>
+    <td><div class="st">${PF.badge(label,color)}${t.error&&t.status!=='published'?`<small>${PF.esc(t.error)}</small>`:''}</div></td>
+    <td><div class="acts">${actions(p,t)}</div></td></tr>`;}).join('')}
+  </tbody></table></div>`;
+}
+
+function calendar(){
+  const y=state.month.getFullYear(),m=state.month.getMonth();
+  const start=new Date(y,m,1-new Date(y,m,1).getDay());
+  const today=new Date().toDateString();
+  const byDay={};
+  for(const {p,t} of rows()){const k=new Date(p.due_at).toDateString();(byDay[k]??=[]).push({p,t});}
+  let cells='';
+  for(let i=0;i<42;i++){
+    const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+    if(i>=35&&d.getMonth()!==m)break;
+    const evs=byDay[d.toDateString()]||[];
+    cells+=`<div class="day ${d.getMonth()!==m?'out':''} ${d.toDateString()===today?'today':''}"><span class="num">${d.getDate()}</span>
+      ${evs.slice(0,3).map(({p,t})=>{const th=thumbUrl(p.media[0]);return `<div class="ev" style="--c:${COLOR[t.status]}" data-open="${p.id}" title="${PF.esc(p.client_name+' · '+(p.title||FORMAT[p.format]))}">${th?`<img src="${PF.esc(th)}" alt="">`:''}<span>${PF.fmtTime(p.due_at)} ${t.network==='instagram'?'IG':'FB'} · ${FORMAT[p.format]}</span></div>`;}).join('')}
+      ${evs.length>3?`<span class="muted tiny">+${evs.length-3} mais</span>`:''}</div>`;
+  }
+  return `<div class="legend-row mb">${[['published','Publicado'],['queued','Agendado'],['processing','Processando'],['failed','Falha']].map(([k,l])=>`<span><i class="dot" style="background:${COLOR[k]}"></i>${l}</span>`).join('')}</div>
+    <div class="cal">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>`;
+}
+
+async function act(action,id,pub){
+  try{
+    if(action==='cancel'){if(!confirm('Cancelar esta publicação em todas as redes?'))return;await PF.api('/api/publications',{method:'DELETE',body:{id:pub}});PF.toast('Publicação cancelada.','ok');}
+    else if(action==='process'){await PF.api('/api/publications',{method:'PATCH',body:{publicationId:pub,action:'process'}});}
+    else if(action==='confirm'){if(!confirm('Você conferiu no perfil e a publicação saiu?'))return;await PF.api('/api/publications',{method:'PATCH',body:{id,action:'confirm'}});}
+    else if(action==='retry'){
+      const t=state.pubs.flatMap(p=>p.targets).find(t=>t.id===id);
+      if(t?.status==='unconfirmed'&&!confirm('Confira no perfil antes: se já saiu, reenviar vai DUPLICAR o post. Reenviar mesmo assim?'))return;
+      PF.toast('Enviando…');await PF.api('/api/publications',{method:'PATCH',body:{id,action:'retry'}});watch(pub);
+    }
+  }catch(e){PF.toast(e.message,'err');}
+  load();
+}
+
+// Enquanto a Meta processa (vídeos levam alguns minutos), continua o envio a cada 8 s.
+const watching=new Set();
+function watch(pubId){
+  if(watching.has(pubId))return;watching.add(pubId);let n=0;
+  const tick=async()=>{
+    n++;
+    try{await PF.api('/api/publications',{method:'PATCH',body:{publicationId:pubId,action:'process'}});}catch{}
+    await load();
+    const p=state.pubs.find(x=>x.id===pubId);
+    const pending=p&&p.due_at<=Date.now()&&p.targets.some(t=>['queued','processing','publishing'].includes(t.status));
+    if(pending&&n<25)setTimeout(tick,8000);
+    else{watching.delete(pubId);if(p&&p.due_at<=Date.now()){const ok=p.targets.every(t=>t.status==='published');PF.toast(ok?'Publicado em todas as redes!':'Envio terminou. Confira o status de cada rede.',ok?'ok':'');}}
+  };
+  setTimeout(tick,4000);
+}
+
+function details(id){
+  const p=state.pubs.find(x=>x.id===id);if(!p)return;
+  const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(p.title||FORMAT[p.format])}</h3><p class="muted small">${PF.esc(p.client_name)} · ${FORMAT[p.format]} · ${PF.fmtDate(p.due_at,{day:'2-digit',month:'long'})} às ${PF.fmtTime(p.due_at)}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <div class="medias" style="margin:0 0 14px">${p.media.map((x,i)=>`<a class="m" href="${PF.esc(x.url)}" target="_blank" rel="noopener">${thumbUrl(x)?`<img src="${PF.esc(thumbUrl(x))}" alt="">`:'<i data-lucide="film"></i>'}<span class="n">${i+1}</span></a>`).join('')}</div>
+    ${p.caption?`<div class="field"><span>Legenda</span><div class="card flat small" style="white-space:pre-wrap;line-height:1.5">${PF.esc(p.caption)}</div></div>`:''}
+    <div class="stack" style="margin-top:14px">${p.targets.map(t=>`<div class="li">${PF.net(t.network)}<div class="t"></div>${PF.badge(...(STATUS[t.status]||[t.status,'gray']))}</div>${t.error&&t.status!=='published'?`<p class="small" style="color:#ff9aa9;margin-top:-8px">${PF.esc(t.error)}</p>`:''}`).join('')}</div>
+    <p class="muted tiny" style="margin-top:14px">Criado por ${PF.esc(p.created_by||'—')}</p>`,{side:true});
+}
+
+// ---------- Nova publicação ----------
+window.openNew=function(){
+  const clients=state.clients;
+  const now=new Date(Date.now()+60*60000);now.setMinutes(0,0,0);
+  const dt=now.toISOString().slice(0,10),tm=now.toTimeString().slice(0,5);
+  const m=PF.modal(`<div class="modal-head"><div><h3>Nova publicação</h3><p class="muted small">Publica direto no Instagram e na Página do Facebook do cliente.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  <form class="stack" id="np">
+    <label class="field"><span>Cliente</span><select class="select-in" name="clientId" required><option value="">Escolha o cliente…</option>${clients.map(c=>`<option value="${c.id}">${PF.esc(c.name)}</option>`).join('')}</select></label>
+    <div class="field"><span>Redes</span><div class="nets" id="nets"><span class="muted small">Escolha o cliente para ver as contas conectadas.</span></div></div>
+    <div class="field"><span>Formato</span><div class="fmt">
+      ${[['post','image','Post'],['carousel','gallery-horizontal','Carrossel'],['reels','clapperboard','Reels'],['stories','circle-dashed','Stories']].map(([v,i,l],k)=>`<label><input type="radio" name="format" value="${v}" ${k===0?'checked':''}><i data-lucide="${i}"></i>${l}</label>`).join('')}
+    </div><small class="muted tiny" id="fmtHint"></small></div>
+    <div class="field"><span>Mídia</span>
+      <div class="drop" id="drop"><i data-lucide="upload-cloud"></i><div>Arraste aqui ou <b style="color:var(--orange)">escolha o arquivo</b></div><div class="tiny">JPG/PNG até 20 MB · MP4/MOV até 100 MB</div></div>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime" multiple hidden>
+      <div class="medias" id="medias"></div>
+      <details style="margin-top:8px"><summary class="muted small" style="cursor:pointer">Ou usar um link público da mídia</summary>
+        <div class="row" style="margin-top:8px"><input class="input" id="urlIn" placeholder="https://…/arquivo.jpg"><select class="select-in" id="urlKind" style="width:120px"><option value="image">Imagem</option><option value="video">Vídeo</option></select><button type="button" class="btn btn-ghost" id="addUrl">Adicionar</button></div>
+      </details>
+    </div>
+    <label class="field"><span>Título interno <small class="muted">(só aparece no sistema)</small></span><input class="input" name="title" maxlength="140" placeholder="Ex.: Post – Dicas de skincare no verão"></label>
+    <label class="field" id="capField"><span>Legenda</span><textarea class="input" name="caption" maxlength="2200" placeholder="Escreva a legenda…"></textarea><div class="counter" id="cnt">0 / 2.200 · 0 hashtags</div></label>
+    <div class="field"><span>Quando</span>
+      <div class="toggle" style="align-self:flex-start"><button type="button" data-mode="schedule" class="on">Agendar</button><button type="button" data-mode="now">Publicar agora</button></div>
+      <div class="when" id="when"><input class="input" type="date" name="date" value="${dt}"><input class="input" type="time" name="time" value="${tm}" step="300"></div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="submit"><i data-lucide="calendar-check"></i>Agendar publicação</button></div>
+  </form>`,{side:true});
+  const f=m.el.querySelector('#np'),F=f.elements;let media=[];let mode='schedule';let uploading=0;
+  m.el.querySelectorAll('[data-close]').forEach(b=>b.onclick=m.close);
+  const fmt=()=>F.format.value;
+  const hints={post:'Uma imagem. No Facebook também aceita vídeo.',carousel:'De 2 a 10 mídias, na ordem em que aparecem. No Facebook, só imagens.',reels:'Um vídeo vertical (9:16), até 90 s.',stories:'Uma imagem ou vídeo vertical. Stories não têm legenda.'};
+  const sync=()=>{
+    m.el.querySelector('#fmtHint').textContent=hints[fmt()];
+    m.el.querySelector('#capField').hidden=fmt()==='stories';
+    m.el.querySelector('#file').multiple=fmt()==='carousel';
+  };
+  f.querySelectorAll('[name=format]').forEach(r=>r.onchange=sync);sync();
+
+  F.clientId.onchange=()=>{
+    const c=clients.find(x=>x.id===F.clientId.value);const box=m.el.querySelector('#nets');
+    if(!c){box.innerHTML='<span class="muted small">Escolha o cliente para ver as contas conectadas.</span>';return;}
+    box.innerHTML=['instagram','facebook'].map(n=>{const a=c.social.find(s=>s.network===n);
+      return `<label class="${a?'':'off'}" title="${a?'':'Não conectado'}"><input type="checkbox" class="chk" name="net" value="${n}" ${a?'checked':'disabled'}>${PF.net(n)}${a?`<span class="muted tiny">${PF.esc(n==='instagram'?'@'+a.username:a.name)}</span>`:'<a class="link tiny" href="configuracoes.html?client='+c.id+'">Conectar</a>'}</label>`;}).join('');
+    PF.icons();
+  };
+  const cap=F.caption,cnt=m.el.querySelector('#cnt');
+  cap.oninput=()=>{const h=(cap.value.match(/#[\p{L}\p{N}_]+/gu)||[]).length;cnt.textContent=`${cap.value.length.toLocaleString('pt-BR')} / 2.200 · ${h} hashtag${h===1?'':'s'}${h>30?' (máx. 30)':''}`;cnt.style.color=h>30?'var(--pink)':'';};
+
+  m.el.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+    mode=b.dataset.mode;m.el.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('on',x===b));
+    m.el.querySelector('#when').hidden=mode==='now';
+    m.el.querySelector('#submit').innerHTML=mode==='now'?'<i data-lucide="send"></i>Publicar agora':'<i data-lucide="calendar-check"></i>Agendar publicação';PF.icons();
+  });
+
+  const drawMedia=()=>{
+    m.el.querySelector('#medias').innerHTML=media.map((x,i)=>`<div class="m" draggable="true" data-i="${i}">
+      ${x.preview?(x.kind==='video'?`<video src="${x.preview}" muted></video>`:`<img src="${x.preview}" alt="">`):`<i data-lucide="${x.kind==='video'?'film':'image'}"></i>`}
+      <span class="n">${i+1}</span>${x.progress<100?`<span class="up" style="width:${x.progress}%"></span>`:''}
+      <button type="button" class="x" data-rm="${i}" aria-label="Remover"><i data-lucide="x"></i></button></div>`).join('');
+    m.el.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{media.splice(+b.dataset.rm,1);drawMedia();});
+    // reordenar arrastando
+    let from=null;
+    m.el.querySelectorAll('.m').forEach(el=>{el.ondragstart=()=>from=+el.dataset.i;el.ondragover=e=>e.preventDefault();el.ondrop=e=>{e.preventDefault();const to=+el.dataset.i;if(from===null||from===to)return;const [x]=media.splice(from,1);media.splice(to,0,x);drawMedia();};});
+    PF.icons();
+  };
+
+  async function upload(file){
+    const kind=file.type.startsWith('video/')?'video':'image';
+    const item={kind,preview:URL.createObjectURL(file),progress:0,url:''};
+    if(fmt()!=='carousel')media=[];
+    media.push(item);drawMedia();uploading++;
+    try{
+      const {upload}=await PF.api('/api/media',{method:'POST',body:{name:file.name,type:file.type,size:file.size}});
+      const fd=new FormData();for(const [k,v] of Object.entries(upload.fields))fd.append(k,v);fd.append('file',file);
+      const res=await new Promise((ok,bad)=>{const x=new XMLHttpRequest();x.open('POST',upload.url);
+        x.upload.onprogress=e=>{if(e.lengthComputable){item.progress=Math.round(e.loaded/e.total*100);drawMedia();}};
+        x.onload=()=>{try{const d=JSON.parse(x.responseText);x.status<300?ok(d):bad(Error(d.error?.message||'Falha no envio.'));}catch{bad(Error('Falha no envio.'));}};
+        x.onerror=()=>bad(Error('Falha de conexão no envio.'));x.send(fd);});
+      Object.assign(item,{url:res.secure_url,width:res.width,height:res.height,progress:100});
+    }catch(e){media=media.filter(x=>x!==item);PF.toast(e.message,'err');}
+    finally{uploading--;drawMedia();}
+  }
+  const drop=m.el.querySelector('#drop'),fileIn=m.el.querySelector('#file');
+  drop.onclick=()=>fileIn.click();
+  fileIn.onchange=()=>{[...fileIn.files].forEach(upload);fileIn.value='';};
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');[...e.dataTransfer.files].forEach(upload);};
+  m.el.querySelector('#addUrl').onclick=()=>{
+    const u=m.el.querySelector('#urlIn').value.trim();if(!/^https:\/\//.test(u))return PF.toast('Use um link https:// direto do arquivo.','err');
+    if(fmt()!=='carousel')media=[];
+    const kind=m.el.querySelector('#urlKind').value;media.push({url:u,kind,preview:kind==='image'?u:'',progress:100});m.el.querySelector('#urlIn').value='';drawMedia();
+  };
+
+  f.onsubmit=async e=>{
+    e.preventDefault();
+    if(uploading)return PF.toast('Aguarde o envio da mídia terminar.','err');
+    const networks=[...f.querySelectorAll('[name=net]:checked')].map(x=>x.value);
+    const body={clientId:F.clientId.value,format:fmt(),networks,title:F.title.value,caption:F.caption.value,mode,
+      media:media.filter(x=>x.url).map(({url,kind,width,height})=>({url,kind,width,height}))};
+    if(mode==='schedule'){const d=new Date(F.date.value+"T"+F.time.value);body.dueAt=d.getTime();}
+    const btn=m.el.querySelector('#submit');btn.disabled=true;
+    try{
+      const r=await PF.api('/api/publications',{method:'POST',body});
+      m.close();PF.toast(mode==='now'?'Enviando para as redes…':'Publicação agendada!','ok');
+      if(mode==='schedule')state.month=new Date(new Date(body.dueAt).getFullYear(),new Date(body.dueAt).getMonth(),1);
+      await load();if(mode==='now')watch(r.id);
+    }catch(x){PF.toast(x.message,'err');btn.disabled=false;}
+  };
+};
+document.getElementById('newPub').onclick=openNew;
+document.getElementById('globalSearch').oninput=e=>{state.q=e.target.value;render();};
+render();load().then(()=>{
+  // Retoma o acompanhamento de envios em andamento
+  state.pubs.filter(p=>p.due_at<=Date.now()&&p.targets.some(t=>['processing','publishing'].includes(t.status))).forEach(p=>watch(p.id));
+});
+</script>
+</body>
+</html>

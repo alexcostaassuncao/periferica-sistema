@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Periférica · Redes sociais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="js/app.js"></script>
+<style>
+  .acc-line{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+  .acc-line img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;background:var(--panel-3)}
+  .acc-line .t{flex:1;min-width:0}
+  .acc-line .t b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acc-line .t small{color:var(--muted);font-size:11.5px}
+  .missing{display:flex;align-items:center;gap:10px;border:1px dashed var(--line-2);border-radius:10px;padding:8px 10px;color:var(--muted);font-size:12.5px}
+  .soon{opacity:.55}
+  code{background:var(--panel);border:1px solid var(--line-2);border-radius:6px;padding:3px 7px;font-size:12px;word-break:break-all}
+  .tbl td{vertical-align:top}
+</style>
+</head>
+<body>
+<script>
+const content=PF.shell({title:'Redes sociais',subtitle:'Conecte a Página do Facebook e o Instagram de cada cliente para publicar direto pelo sistema.',crumbs:[['Configurações'],['Redes sociais']],search:false,
+  actions:`<button class="btn btn-ghost" id="newClient"><i data-lucide="plus"></i>Novo cliente</button>`});
+
+const MESSAGES={
+  connected:['ok','Conta conectada e vinculada ao cliente.'],
+  choose:['info','Login feito. Escolha abaixo qual Página pertence a este cliente.'],
+  no_pages:['err','Nenhuma Página foi liberada. No login do Facebook, marque a Página do cliente (e o Instagram ligado a ela).'],
+  cancelled:['err','O login no Facebook foi cancelado.'],
+  configuration:['err','A integração com a Meta ainda não foi configurada no servidor (META_APP_ID, META_APP_SECRET e SOCIAL_TOKEN_KEY).'],
+  state:['err','O link de conexão expirou. Clique em conectar de novo.'],
+  denied:['err','Só o administrador pode conectar contas.'],
+  client:['err','Cliente inválido.'],
+  failed:['err','Não foi possível concluir a conexão com a Meta. Tente de novo.'],
+};
+let data={clients:[],accounts:[],meta:{}};
+const qs=new URLSearchParams(location.search);
+const focusClient=qs.get('client');
+
+async function load(){
+  try{
+    const [c,s]=await Promise.all([PF.api('/api/clients'),PF.api('/api/social')]);
+    data={clients:c.clients,accounts:s.accounts,meta:s.meta};
+  }catch(e){PF.toast(e.message,'err');}
+  render();
+}
+
+function accLine(a){
+  return `<div class="acc-line">
+    ${a.picture?`<img src="${PF.esc(a.picture)}" alt="" referrerpolicy="no-referrer">`:`<span class="net">${a.network==='instagram'?'<i class="ig">IG</i>':'<i class="fb">f</i>'}</span>`}
+    <div class="t"><b>${PF.esc(a.network==='instagram'?'@'+(a.username||a.name):a.name)}</b><small>${a.network==='instagram'?'Instagram profissional':'Página do Facebook'}</small></div>
+    <button class="icon-btn" title="Desvincular" data-unlink="${PF.esc(a.id)}"><i data-lucide="unlink"></i></button>
+  </div>`;
+}
+
+function render(){
+  const msg=MESSAGES[qs.get('social')];
+  const pending=data.accounts.filter(a=>a.network==='facebook'&&!a.client_id);
+  const igOf=fb=>data.accounts.find(a=>a.network==='instagram'&&a.page_id===fb.external_id);
+  content.innerHTML=`
+  ${msg?`<div class="note ${msg[0]==='info'||msg[0]==='ok'?'info':''} mb"><i data-lucide="${msg[0]==='err'?'triangle-alert':'info'}"></i><div>${PF.esc(msg[1])}</div></div>`:''}
+  ${data.meta.ready===false?`<div class="note mb"><i data-lucide="settings"></i><div><b>Integração com a Meta ainda não configurada.</b><br>
+    Crie um app do tipo <b>Empresa</b> em developers.facebook.com, adicione o produto <b>Login do Facebook para Empresas</b> e cadastre esta URL de redirecionamento:<br>
+    <code>${PF.esc(data.meta.redirectUri||'')}</code><br>Depois defina <b>META_APP_ID</b>, <b>META_APP_SECRET</b> e <b>SOCIAL_TOKEN_KEY</b> na Vercel. O passo a passo está no README.</div></div>`:''}
+
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'users',color:'orange',value:String(data.clients.length),label:'Clientes cadastrados'})}
+    ${PF.kpi({icon:'facebook',color:'blue',value:String(data.accounts.filter(a=>a.network==='facebook'&&a.client_id).length),label:'Páginas do Facebook vinculadas'})}
+    ${PF.kpi({icon:'instagram',color:'pink',value:String(data.accounts.filter(a=>a.network==='instagram'&&a.client_id).length),label:'Instagrams vinculados'})}
+    ${PF.kpi({icon:'link-2-off',color:'yellow',value:String(pending.length),label:'Páginas aguardando vínculo'})}
+  </section>
+
+  ${pending.length?`<div class="card mb fade"><div class="card-head"><div><h2>Páginas aguardando vínculo</h2><p>Liberadas no login do Facebook, mas ainda sem cliente.</p></div></div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Página</th><th>Instagram ligado</th><th>Vincular ao cliente</th><th></th></tr></thead><tbody>
+    ${pending.map(p=>{const ig=igOf(p);return `<tr>
+      <td>${PF.net('facebook').replace('Facebook',PF.esc(p.name))}</td>
+      <td>${ig?PF.net('instagram').replace('Instagram','@'+PF.esc(ig.username)):'<span class="muted small">Nenhum</span>'}</td>
+      <td><select class="select-in" data-pick="${PF.esc(p.id)}" style="min-width:200px"><option value="">Escolha…</option>${data.clients.map(c=>`<option value="${c.id}" ${c.id===focusClient?'selected':''}>${PF.esc(c.name)}</option>`).join('')}</select></td>
+      <td class="right nowrap"><button class="btn btn-primary btn-sm" data-link="${PF.esc(p.id)}">Vincular</button>
+        <button class="icon-btn" title="Remover token guardado" data-remove="${PF.esc(p.id)}"><i data-lucide="trash-2"></i></button></td></tr>`;}).join('')}
+    </tbody></table></div></div>`:''}
+
+  <div class="card fade">
+    <div class="card-head"><div><h2>Clientes e contas conectadas</h2><p>Um login libera a Página e o Instagram profissional ligado a ela.</p></div></div>
+    ${data.clients.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Facebook</th><th>Instagram</th><th></th></tr></thead><tbody>
+    ${data.clients.map(c=>{const fb=c.social.find(a=>a.network==='facebook'),ig=c.social.find(a=>a.network==='instagram');return `<tr class="${c.id===focusClient?'hl':''}">
+      <td><div class="who">${PF.chip(c.name)}<div><b>${PF.esc(c.name)}</b><small>${PF.esc(c.segment||'—')}</small></div></div></td>
+      <td style="min-width:200px">${fb?accLine(fb):'<div class="missing"><i data-lucide="facebook"></i>Não conectado</div>'}</td>
+      <td style="min-width:200px">${ig?accLine(ig):`<div class="missing"><i data-lucide="instagram"></i>${fb?'A Página não tem Instagram profissional ligado':'Não conectado'}</div>`}</td>
+      <td class="right"><a class="btn ${fb?'btn-ghost':'btn-primary'} btn-sm" href="/api/social/meta/start?client=${encodeURIComponent(c.id)}"><i data-lucide="${fb?'refresh-cw':'plug'}"></i>${fb?'Reconectar':'Conectar Facebook + Instagram'}</a></td>
+    </tr>`;}).join('')}
+    </tbody></table></div>`:`<div class="empty"><i data-lucide="users"></i><div>Nenhum cliente cadastrado ainda.</div><button class="btn btn-primary" style="margin-top:12px" onclick="newClient()"><i data-lucide="plus"></i>Cadastrar cliente</button></div>`}
+  </div>
+
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card soon"><div class="row"><div class="ico md c-pink"><i data-lucide="youtube"></i></div><div><b>YouTube</b><div class="muted small">Em breve: Shorts e vídeos.</div></div></div></div>
+    <div class="card soon"><div class="row"><div class="ico md c-blue"><i data-lucide="linkedin"></i></div><div><b>LinkedIn</b><div class="muted small">Em breve: posts de página.</div></div></div></div>
+  </div>`;
+  PF.icons();
+  content.querySelectorAll('[data-link]').forEach(b=>b.onclick=async()=>{
+    const sel=content.querySelector(`[data-pick="${CSS.escape(b.dataset.link)}"]`);
+    if(!sel.value)return PF.toast('Escolha o cliente.','err');
+    b.disabled=true;
+    try{await PF.api('/api/social',{method:'POST',body:{accountId:b.dataset.link,clientId:sel.value}});PF.toast('Página vinculada.','ok');load();}
+    catch(e){PF.toast(e.message,'err');b.disabled=false;}
+  });
+  content.querySelectorAll('[data-unlink],[data-remove]').forEach(b=>b.onclick=async()=>{
+    const remove=!!b.dataset.remove;
+    if(!confirm(remove?'Apagar esta Página e o acesso guardado?':'Desvincular esta conta do cliente? As publicações dele deixam de sair nesta rede.'))return;
+    try{await PF.api('/api/social',{method:'DELETE',body:{id:b.dataset.remove||b.dataset.unlink,mode:remove?'remove':'unlink'}});PF.toast('Feito.','ok');load();}
+    catch(e){PF.toast(e.message,'err');}
+  });
+}
+
+window.newClient=function(){
+  const m=PF.modal(`<div class="modal-head"><h3>Novo cliente</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <form class="stack" id="nc">
+      <label class="field"><span>Nome do cliente</span><input class="input" name="name" required maxlength="120"></label>
+      <div class="grid g2"><label class="field"><span>Segmento</span><input class="input" name="segment" placeholder="Saúde / Estética"></label>
+      <label class="field"><span>Squad</span><select class="select-in" name="squad"><option value="">—</option><option>C1</option><option>C2</option><option>C3</option></select></label></div>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div>
+    </form>`);
+  m.el.querySelectorAll('[data-close]').forEach(b=>b.onclick=m.close);
+  m.el.querySelector('#nc').onsubmit=async e=>{
+    e.preventDefault();
+    try{await PF.api('/api/clients',{method:'POST',body:Object.fromEntries(new FormData(e.target))});m.close();PF.toast('Cliente cadastrado.','ok');load();}
+    catch(x){PF.toast(x.message,'err');}
+  };
+};
+document.getElementById('newClient').onclick=newClient;
+render();load();
+</script>
+</body>
+</html>
