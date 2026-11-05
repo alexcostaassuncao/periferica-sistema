@@ -46,10 +46,24 @@ async function act(id,action,extra={},msg){
 
 function actions(c){
   const b=(a,label,cls='btn-ghost',icon='')=>`<button class="btn ${cls} btn-sm" data-a="${a}" data-id="${c.id}">${icon?`<i data-lucide="${icon}"></i>`:''}${label}</button>`;
-  if(c.status==='elab')return b('edit','Editar','btn-ghost','pencil')+b('send','Enviar para assinatura','btn-primary','send')+b('cancel','Cancelar');
-  if(c.status==='aguard')return b('edit','Editar','btn-ghost','pencil')+b('sign','Marcar como assinado','btn-primary','check')+b('cancel','Cancelar');
-  if(c.status==='assin')return c.client_id?`<a class="btn btn-ghost btn-sm" href="clientes.html?id=${c.client_id}"><i data-lucide="contact"></i>Ver cliente</a>`:'';
+  const temModelo=c.kind==='Gestão'||/site|website|e-?commerce|loja/i.test(c.model);
+  const pdf=temModelo?`<a class="icon-btn" title="Ver PDF" href="/api/contracts/pdf?id=${c.id}" target="_blank" rel="noopener"><i data-lucide="file-text"></i></a><a class="icon-btn" title="Baixar PDF" href="/api/contracts/pdf?id=${c.id}&download=1"><i data-lucide="download"></i></a>`:'';
+  const enviar=temModelo?b('send',c.status==='elab'?'Enviar ao cliente':'Reenviar',c.status==='elab'?'btn-primary':'btn-ghost','send'):(c.status==='elab'?b('mark','Marcar como enviado','btn-primary','send'):'');
+  if(c.status==='elab')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('cancel','Cancelar');
+  if(c.status==='aguard')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('sign','Marcar como assinado','btn-primary','check')+b('cancel','Cancelar');
+  if(c.status==='assin')return pdf+(c.client_id?`<a class="btn btn-ghost btn-sm" href="clientes.html?id=${c.client_id}"><i data-lucide="contact"></i>Ver cliente</a>`:'');
   return c.cancelled_reason?`<span class="muted tiny">${PF.esc(c.cancelled_reason)}</span>`:'';
+}
+// Escolher como enviar: email (PDF anexo), WhatsApp (link do PDF) ou só marcar como enviado.
+function sendMenu(c){
+  const m=PF.modal(`<div class="modal-head"><div><h3>Enviar contrato</h3><p class="muted small">${PF.esc(c.company)}${c.emailed_to?' · último email: '+PF.esc(c.emailed_to):''}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <div class="stack">
+      <button class="btn btn-ghost" style="justify-content:flex-start;padding:14px" data-v="email"><i data-lucide="mail"></i><div style="text-align:left"><b>Por email</b><div class="muted tiny">O PDF vai anexado na mensagem.</div></div></button>
+      <button class="btn btn-ghost" style="justify-content:flex-start;padding:14px" data-v="whatsapp"><i data-lucide="message-circle"></i><div style="text-align:left"><b>Pelo WhatsApp</b><div class="muted tiny">Abre o WhatsApp com a mensagem e o link do PDF (vale 30 dias).</div></div></button>
+      <button class="btn btn-ghost" style="justify-content:flex-start;padding:14px" data-v="mark"><i data-lucide="check"></i><div style="text-align:left"><b>Já enviei por fora (ex.: ClickSign)</b><div class="muted tiny">Só muda o status para "Aguardando assinatura".</div></div></button>
+    </div>`);
+  m.el.querySelectorAll('[data-v]').forEach(x=>x.onclick=()=>{m.close();const v=x.dataset.v;
+    if(v==='mark')act(c.id,'send',{},'Contrato marcado como enviado.');else PF.contractSend(c,v,load);});
 }
 
 function render(){
@@ -79,7 +93,8 @@ function render(){
   content.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
     const c=D.contracts.find(x=>x.id===b.dataset.id),a=b.dataset.a;
     if(a==='edit')return PF.contractForm({contract:c,onDone:load});
-    if(a==='send')return act(c.id,'send',{},'Contrato enviado para assinatura.');
+    if(a==='send')return sendMenu(c);
+    if(a==='mark')return act(c.id,'send',{},'Contrato marcado como enviado.');
     if(a==='cancel'){const r=prompt('Motivo do cancelamento:');if(r)act(c.id,'cancel',{reason:r},'Contrato cancelado.');return;}
     if(a==='sign'){
       if(!confirm(`Confirmar que ${c.company} assinou o contrato?\n\nO cliente será criado automaticamente em Clientes com os dados do cadastro.`))return;
