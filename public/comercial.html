@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/app.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/contrato-form.js"></script>
 <style>
   .col-head{border-radius:8px;border-bottom:0;padding:9px 10px;background:color-mix(in srgb,var(--c) 22%,transparent)}
   .kcard .src{align-self:flex-start}
@@ -22,6 +23,7 @@
   .kcard .owner{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--soft);padding-top:7px;border-top:1px solid var(--line)}
   .kcard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
   .kcard .top small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+  .kcard .gen{width:100%}
   .info-cards .card{display:flex;flex-direction:column;gap:10px}
   .info-cards .card ul{list-style:none;display:flex;flex-direction:column;gap:9px;font-size:13px;background:rgba(0,0,0,.2);border-radius:10px;padding:12px}
   .info-cards .card li{display:flex;gap:9px;align-items:center}
@@ -29,8 +31,7 @@
   .t-wait{background:linear-gradient(180deg,rgba(246,181,30,.13),var(--panel))}
   .t-arch{background:linear-gradient(180deg,rgba(244,63,94,.13),var(--panel))}
   .t-hist{background:linear-gradient(180deg,rgba(31,213,154,.12),var(--panel))}
-  .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12.5px}
-  .kv small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:4px}
+  .empty-col{color:var(--dim);font-size:12px;text-align:center;padding:16px 4px}
 </style>
 </head>
 <body>
@@ -39,111 +40,130 @@ const content=PF.shell({title:'Comercial',subtitle:'Gestão de leads e oportunid
   actions:`<button class="btn btn-primary" id="newLead"><i data-lucide="plus"></i>Novo lead</button>`});
 
 const STAGES=[['novo','Novo lead','var(--blue)'],['contato','Em contato','var(--orange)'],['reuniao','Reunião','var(--purple)'],['proposta','Proposta enviada','var(--yellow)'],['negociacao','Negociação','var(--pink)'],['fechado','Fechado','var(--green)']];
-const SRC={'Meta Ads':'pink','Prospecção':'blue','WhatsApp':'green','Proposta':'blue','Contrato':'pink','Site':'orange','Ajustes':'orange','Indicação':'purple'};
-const OWNERS=['Tiago','João','Sabrina','Djenifer'];
-let leads=[
-  ['Clínica Vida+','Saúde / Estética','Meta Ads','Juliana Ferreira','(48) 9 9123-4567','juliana@clinicavida.com.br','novo',''],
-  ['Real Pedras','Construção','Site','Carlos Mendes','(48) 9 9234-1100','carlos@realpedras.com.br','novo','João'],
-  ['Estação Lanches','Alimentação','Prospecção','Paulo Silva','(48) 9 9987-6655','paulo@estacaolanches.com.br','contato','Sabrina'],
-  ['M2 Uniformes','Varejo','WhatsApp','Camila Duarte','(48) 9 9011-2233','camila@m2uniformes.com.br','contato','João'],
-  ['Elegance Cortinas','Decoração','WhatsApp','Ana Júlia','(48) 9 9911-2233','ana@elegance.com.br','reuniao','Tiago'],
-  ['Airsell','Indústria','Meta Ads','Roberto Lima','(48) 9 9444-1212','roberto@airsell.com.br','reuniao','Djenifer'],
-  ['ELOWAY APP','Tecnologia','Proposta','Felipe Rocha','(48) 9 9978-3344','felipe@eloway.com.br','proposta','João'],
-  ['Escritório A1','Serviços','Proposta','Marcela Pinto','(48) 9 9555-7788','marcela@escritorioa1.com.br','proposta','Sabrina'],
-  ['Supermercado dos Amigos','Alimentação','Proposta','Fernanda Vieira','(48) 9 9666-3030','fernanda@amigos.com.br','negociacao','Tiago'],
-  ['Filetto Uniformes','Indústria','Ajustes','Ricardo Alves','(48) 9 9777-4545','ricardo@filetto.com.br','negociacao','João'],
-  ['Parque das Águas','Turismo','Contrato','Lara Gomes','(48) 9 9888-1919','lara@parquedasaguas.com.br','fechado','Sabrina'],
-  ['DZAM Uniformes','Indústria','Contrato','Daniel Souza','(48) 9 9333-2828','daniel@dzam.com.br','fechado','Tiago'],
-].map(([name,seg,src,contact,phone,email,stage,owner],i)=>({id:'l'+i,name,seg,src,contact,phone,email,stage,owner,interest:'Gestão + Tráfego'}));
-const waiting=[{name:'Pet Love',seg:'Pet shop',reason:'Sem resposta',back:'20/11'},{name:'Solaris Tech',seg:'Tecnologia',reason:'Retomada futura (3 meses)',back:'05/02'}];
-const archived=[{name:'Bella Forma',seg:'Academia',reason:'Fechou com outra empresa'},{name:'Lojas Dallas',seg:'Varejo',reason:'Desqualificado (fora do perfil)'}];
-let tab='andamento',filters={src:'',seg:'',owner:''};
-const wa=p=>'https://wa.me/55'+p.replace(/\D/g,'');
+const SOURCES=['Meta Ads','Google Ads','Prospecção','WhatsApp','Site','Indicação','Instagram','Evento'];
+const SRC={'Meta Ads':'pink','Google Ads':'yellow','Prospecção':'blue','WhatsApp':'green','Site':'orange','Indicação':'purple','Instagram':'pink','Evento':'gray'};
+const CONTRACT={elab:['Contrato em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Contrato assinado','green']};
+const WAIT=['Sem resposta (com data de retorno)','Retomada futura (ex.: 3 meses)','Aguardando definição do cliente'];
+const ARCH=['Não teve interesse','Desqualificado (fora do perfil)','Não respondeu (após tentativas)','Fechou com outra empresa'];
+let leads=[],owners=[],tab='andamento',filters={src:'',seg:'',owner:''},q='';
+const ownerName=id=>owners.find(o=>o.id===id)?.name||'';
+const wa=p=>'https://wa.me/55'+String(p||'').replace(/\D/g,'');
+
+async function load(){
+  try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;}catch(e){PF.toast(e.message,'err');}
+  render();
+}
+async function patch(body,msg){
+  try{await PF.api('/api/leads',{method:'PATCH',body});if(msg)PF.toast(msg,'ok');}catch(e){PF.toast(e.message,'err');}
+  await load();
+}
 
 function card(l){
+  const c=CONTRACT[l.contract_status];
   return `<div class="kcard" data-id="${l.id}">
-    <div class="top"><div><b>${PF.esc(l.name)}</b><small>${PF.esc(l.seg)}</small></div><button class="icon-btn" data-open="${l.id}" aria-label="Abrir"><i data-lucide="ellipsis-vertical"></i></button></div>
-    <span class="badge b-${SRC[l.src]||'gray'} src">${PF.esc(l.src)}</span>
-    <div class="contact"><i data-lucide="user"></i>${PF.esc(l.contact)}</div>
-    <div class="acts"><a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i>WhatsApp</a>
-      <a class="icon-btn" href="tel:${l.phone.replace(/\D/g,'')}" aria-label="Ligar"><i data-lucide="phone"></i></a>
-      <a class="icon-btn" href="mailto:${PF.esc(l.email)}" aria-label="Email"><i data-lucide="mail"></i></a></div>
-    <div class="owner">${l.owner?PF.avatar(l.owner)+PF.esc(l.owner):'<span class="avatar sm" style="background:#2a313c"><i data-lucide="user" style="width:13px"></i></span><span class="muted">Sem responsável</span>'}</div>
+    <div class="top"><div><b>${PF.esc(l.company)}</b><small>${PF.esc(l.segment||'—')}</small></div><button class="icon-btn" data-open="${l.id}" aria-label="Abrir"><i data-lucide="ellipsis-vertical"></i></button></div>
+    ${l.source?`<span class="badge b-${SRC[l.source]||'gray'} src">${PF.esc(l.source)}</span>`:''}
+    ${l.contact_name?`<div class="contact"><i data-lucide="user"></i>${PF.esc(l.contact_name)}</div>`:''}
+    <div class="acts">${l.phone?`<a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i>WhatsApp</a><a class="icon-btn" href="tel:${l.phone.replace(/\D/g,'')}" aria-label="Ligar"><i data-lucide="phone"></i></a>`:''}
+      ${l.email?`<a class="icon-btn" href="mailto:${PF.esc(l.email)}" aria-label="Email"><i data-lucide="mail"></i></a>`:''}</div>
+    ${l.stage==='fechado'?(c?`<a href="contratos.html" class="badge b-${c[1]}" style="align-self:flex-start"><i data-lucide="file-text" style="width:13px"></i>${c[0]}</a>`
+      :`<button class="btn btn-primary btn-sm gen" data-gen="${l.id}"><i data-lucide="file-plus"></i>Gerar contrato</button>`):''}
+    <div class="owner">${l.owner_id?PF.avatar(ownerName(l.owner_id))+PF.esc(ownerName(l.owner_id)):'<span class="avatar sm" style="background:#2a313c"><i data-lucide="user" style="width:13px"></i></span><span class="muted">Sem responsável</span>'}</div>
   </div>`;
 }
 
 function render(){
-  const list=leads.filter(l=>(!filters.src||l.src===filters.src)&&(!filters.seg||l.seg===filters.seg)&&(!filters.owner||l.owner===filters.owner));
+  const by=s=>leads.filter(l=>l.situation===s);
+  const match=l=>(!filters.src||l.source===filters.src)&&(!filters.seg||l.segment===filters.seg)&&(!filters.owner||l.owner_id===filters.owner)&&(!q||(l.company+' '+l.contact_name+' '+l.email+' '+l.phone).toLowerCase().includes(q));
+  const active=by('andamento').filter(match);
   content.innerHTML=`
-  <div class="tabs"><button class="${tab==='andamento'?'on':''}" data-t="andamento">Em andamento<span class="count">${leads.length}</span></button><button class="${tab==='espera'?'on':''}" data-t="espera">Em espera<span class="count">${waiting.length}</span></button><button class="${tab==='arquivados'?'on':''}" data-t="arquivados">Arquivados<span class="count">${archived.length}</span></button><span style="margin-left:auto;align-self:center">${PF.demo()}</span></div>
+  <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
   <div class="filters">
-    ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.src))].map(s=>[s,s])])}
-    ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.seg))].map(s=>[s,s])])}
-    ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...OWNERS.map(s=>[s,s])])}
+    ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
+    ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.segment).filter(Boolean))].map(s=>[s,s])])}
+    ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
   </div>
-  <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=list.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')}</div>`;}).join('')}</div>`
-  :tab==='espera'?`<div class="card mb"><table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th><th>Retomar em</th><th></th></tr></thead><tbody>${waiting.map(w=>`<tr><td><div class="who">${PF.chip(w.name)}<div><b>${w.name}</b><small>${w.seg}</small></div></div></td><td>${w.reason}</td><td>${w.back}</td><td class="right"><button class="btn btn-ghost btn-sm" data-react="${w.name}"><i data-lucide="rotate-ccw"></i>Reativar</button></td></tr>`).join('')}</tbody></table></div>`
-  :`<div class="card mb"><table class="tbl"><thead><tr><th>Lead</th><th>Motivo do encerramento</th><th></th></tr></thead><tbody>${archived.map(w=>`<tr><td><div class="who">${PF.chip(w.name)}<div><b>${w.name}</b><small>${w.seg}</small></div></div></td><td>${w.reason}</td><td class="right"><button class="btn btn-ghost btn-sm" data-react="${w.name}"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></td></tr>`).join('')}</tbody></table></div>`}
+  <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
+  :`<div class="card mb">${by(tab).filter(match).length?`<table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th>${tab==='espera'?'<th>Retomar em</th>':''}<th>Responsável</th><th></th></tr></thead><tbody>
+    ${by(tab).filter(match).map(l=>`<tr><td><div class="who">${PF.chip(l.company)}<div><b>${PF.esc(l.company)}</b><small>${PF.esc(l.segment||'—')}</small></div></div></td><td>${PF.esc(l.reason)}</td>${tab==='espera'?`<td>${l.return_at?l.return_at.split('-').reverse().join('/'):'—'}</td>`:''}<td>${PF.esc(ownerName(l.owner_id)||'—')}</td>
+      <td class="right"><button class="btn btn-ghost btn-sm" data-react="${l.id}"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></td></tr>`).join('')}
+    </tbody></table>`:`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum lead ${tab==='espera'?'em espera':'arquivado'}.</div></div>`}</div>`}
   <section class="grid g3 info-cards">
     <div class="card t-wait"><div class="row"><div class="ico md c-yellow round"><i data-lucide="clock"></i></div><div><b>Em espera</b><p class="muted small">Leads que podem voltar a negociar, com data de retomada e responsável.</p></div></div>
-      <ul><li><i data-lucide="clock" style="color:var(--yellow)"></i>Sem resposta (com data de retorno)</li><li><i data-lucide="clock" style="color:var(--yellow)"></i>Retomada futura (ex.: 3 meses)</li><li><i data-lucide="clock" style="color:var(--yellow)"></i>Aguardando definição do cliente</li></ul></div>
+      <ul>${WAIT.map(t=>`<li><i data-lucide="clock" style="color:var(--yellow)"></i>${t}</li>`).join('')}</ul></div>
     <div class="card t-arch"><div class="row"><div class="ico md c-pink round"><i data-lucide="mail-x"></i></div><div><b>Arquivados</b><p class="muted small">Leads encerrados, com o motivo registrado e histórico salvo.</p></div></div>
-      <ul><li><i data-lucide="square-x" style="color:var(--pink)"></i>Não teve interesse</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Desqualificado (fora do perfil)</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Não respondeu (após tentativas)</li><li><i data-lucide="square-x" style="color:var(--pink)"></i>Fechou com outra empresa</li></ul></div>
-    <div class="card t-hist"><div class="row"><div class="ico md c-green round"><i data-lucide="file-text"></i></div><div><b>Histórico e reativação</b><p class="muted small">Todos os leads ficam salvos para consulta e podem ser reativados a qualquer momento.</p></div></div>
-      <button class="btn btn-ghost" style="margin-top:auto" data-t="espera"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></div>
+      <ul>${ARCH.map(t=>`<li><i data-lucide="square-x" style="color:var(--pink)"></i>${t}</li>`).join('')}</ul></div>
+    <div class="card t-hist"><div class="row"><div class="ico md c-green round"><i data-lucide="file-text"></i></div><div><b>Do fechamento ao cliente</b><p class="muted small">Em <b>Fechado</b>, clique em <b>Gerar contrato</b>. Quando o contrato for assinado, o cliente é criado sozinho com os dados deste cadastro.</p></div></div>
+      <a class="btn btn-ghost" style="margin-top:auto" href="contratos.html"><i data-lucide="file-signature"></i>Ver contratos</a></div>
   </section>`;
   PF.icons();
   content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();});
   if(tab==='andamento'){
     const bind=(id,key)=>{const s=content.querySelector('#'+id);s.value=filters[key];s.onchange=()=>{filters[key]=s.value;render();};};
     bind('fSrc','src');bind('fSeg','seg');bind('fOwner','owner');
-    PF.kanban(content.querySelector('.kanban'),(id,col)=>{const l=leads.find(x=>x.id===id);l.stage=col;PF.toast(`${l.name} → ${STAGES.find(s=>s[0]===col)[1]}`,'ok');});
-    content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openLead(b.dataset.open));
+    PF.kanban(content.querySelector('.kanban'),(id,col)=>{const l=leads.find(x=>x.id===id);if(l.stage===col)return;l.stage=col;patch({id,stage:col},`${l.company} → ${STAGES.find(s=>s[0]===col)[1]}`);});
+    content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openLead(leads.find(l=>l.id===b.dataset.open)));
+    content.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>generate(leads.find(l=>l.id===b.dataset.gen)));
   }
-  content.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>PF.toast(b.dataset.react+' voltou para o funil.','ok'));
+  content.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>patch({id:b.dataset.react,situation:'andamento'},'Lead voltou para o funil.'));
 }
 
-function openLead(id){
-  const l=leads.find(x=>x.id===id);
-  const m=PF.modal(`<div class="modal-head"><div class="row"><h3>${PF.esc(l.name)}</h3><span class="badge b-green"><i data-lucide="circle-check" style="width:13px"></i>Qualificado</span></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
-    <div class="tabs" data-tabs><button class="on" data-tab="r">Resumo</button><button data-tab="t">Triagem</button><button data-tab="i">Interações</button><button data-tab="a">Arquivos</button></div>
-    <section data-pane="r" class="stack">
-      <div><div class="muted small" style="margin-bottom:8px">Informações do contato</div>
-        <div class="li"><i data-lucide="user"></i><div class="t"><b>${PF.esc(l.contact)}</b></div><i data-lucide="phone"></i><span class="small">${l.phone}</span><a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i></a></div>
-        <div class="li"><i data-lucide="mail"></i><div class="t"><span>${PF.esc(l.email)}</span></div></div></div>
-      <div class="kv"><div><small>Origem</small><span class="badge b-${SRC[l.src]||'gray'}">${l.src}</span></div><div><small>Segmento</small>${l.seg}</div><div><small>Interesse</small>${l.interest}</div></div>
-      <label class="field"><span>Responsável comercial</span><select class="select-in" id="owner"><option value="">Sem responsável</option>${OWNERS.map(o=>`<option ${o===l.owner?'selected':''}>${o}</option>`).join('')}</select></label>
-      <label class="field"><span>Etapa do funil</span><select class="select-in" id="stage">${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''}>${lb}</option>`).join('')}</select></label>
-    </section>
-    <section data-pane="t" hidden class="stack small">
-      <div class="li"><div class="t"><span>Qual o principal objetivo?</span><b>Atrair mais clientes pelo Instagram</b></div></div>
-      <div class="li"><div class="t"><span>Já investe em anúncios?</span><b>Sim, até R$ 1.000/mês</b></div></div>
-      <div class="li"><div class="t"><span>Serviços de interesse</span><b>${l.interest}</b></div></div>
-      <div class="li"><div class="t"><span>Aviso de privacidade</span><b>Aceito no WhatsApp</b></div></div>
-    </section>
-    <section data-pane="i" hidden class="stack small">
-      <div class="li"><i data-lucide="message-circle"></i><div class="t"><b>Primeiro contato pelo WhatsApp</b><span>há 2 dias · ${PF.esc(l.owner||'Automação')}</span></div></div>
-      <div class="li"><i data-lucide="calendar"></i><div class="t"><b>Reunião de diagnóstico agendada</b><span>ontem</span></div></div>
-      <textarea class="input" placeholder="Registrar interação (reunião, proposta, retorno)…" style="min-height:70px"></textarea>
-      <button class="btn btn-ghost btn-sm" style="align-self:flex-end">Registrar</button>
-    </section>
-    <section data-pane="a" hidden><div class="empty"><i data-lucide="paperclip"></i><div>Nenhum arquivo ainda.</div></div></section>
-    <div class="modal-foot"><button class="btn btn-ghost" id="arch"><i data-lucide="archive"></i>Arquivar</button><button class="btn btn-primary" id="save">Salvar</button></div>`,{side:true});
-  PF.tabs(m.el);
-  m.el.querySelector('#save').onclick=()=>{l.owner=m.el.querySelector('#owner').value;l.stage=m.el.querySelector('#stage').value;m.close();render();PF.toast('Lead atualizado.','ok');};
-  m.el.querySelector('#arch').onclick=()=>{const reason=prompt('Motivo do encerramento?','Não teve interesse');if(!reason)return;archived.push({name:l.name,seg:l.seg,reason});leads=leads.filter(x=>x!==l);m.close();render();};
+function fields(l={}){
+  return `<div class="grid g2"><label class="field"><span>Empresa</span><input class="input" name="company" required value="${PF.esc(l.company||'')}"></label>
+    <label class="field"><span>Segmento</span><input class="input" name="segment" value="${PF.esc(l.segment||'')}" placeholder="Ex.: Saúde / Estética"></label></div>
+  <div class="grid g2"><label class="field"><span>Contato</span><input class="input" name="contact_name" value="${PF.esc(l.contact_name||'')}"></label>
+    <label class="field"><span>WhatsApp</span><input class="input" name="phone" value="${PF.esc(l.phone||'')}" placeholder="(48) 9 0000-0000"></label></div>
+  <div class="grid g2"><label class="field"><span>Email</span><input class="input" name="email" type="email" value="${PF.esc(l.email||'')}"></label>
+    <label class="field"><span>Origem</span><select class="select-in" name="source"><option value="">—</option>${SOURCES.map(o=>`<option ${o===l.source?'selected':''}>${o}</option>`).join('')}</select></label></div>
+  <div class="grid g2"><label class="field"><span>Interesse</span><input class="input" name="interest" value="${PF.esc(l.interest||'')}" placeholder="Ex.: Gestão + Tráfego"></label>
+    <label class="field"><span>Responsável comercial</span><select class="select-in" name="owner_id"><option value="">Sem responsável</option>${owners.map(o=>`<option value="${o.id}" ${o.id===l.owner_id?'selected':''}>${PF.esc(o.name)}</option>`).join('')}</select></label></div>`;
+}
+const formData=f=>{const d=Object.fromEntries(new FormData(f));return d;};
+
+function openLead(l){
+  const c=CONTRACT[l.contract_status];
+  const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(l.company)}</h3><p class="muted small">Cadastrado em ${new Date(l.created_at).toLocaleDateString('pt-BR')}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <form class="stack" id="f">
+      ${fields(l)}
+      <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage">${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''}>${lb}</option>`).join('')}</select></label>
+      <label class="field"><span>Anotações (triagem, interações, combinados)</span><textarea class="input" name="notes" style="min-height:90px">${PF.esc(l.notes||'')}</textarea></label>
+      ${c?`<a class="note info" href="contratos.html"><i data-lucide="file-text"></i><div>${c[0]}. <b>Ver em Contratos →</b></div></a>`:''}
+      <div class="row wrap" style="gap:8px">
+        ${!c?`<button type="button" class="btn btn-primary btn-sm" id="gen"><i data-lucide="file-plus"></i>Gerar contrato</button>`:''}
+        <button type="button" class="btn btn-ghost btn-sm" id="wait"><i data-lucide="clock"></i>Colocar em espera</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="arch"><i data-lucide="archive"></i>Arquivar</button>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div>
+    </form>`,{side:true});
+  const f=m.el.querySelector('#f');
+  f.onsubmit=async e=>{e.preventDefault();m.close();await patch({id:l.id,...formData(f)},'Lead atualizado.');};
+  const g=m.el.querySelector('#gen');if(g)g.onclick=()=>{m.close();generate(l);};
+  m.el.querySelector('#wait').onclick=()=>reason(l,'espera');
+  m.el.querySelector('#arch').onclick=()=>reason(l,'arquivado');
+  function reason(l,kind){
+    const opts=kind==='espera'?WAIT:ARCH;
+    const r=PF.modal(`<div class="modal-head"><h3>${kind==='espera'?'Colocar em espera':'Arquivar lead'}</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+      <form class="stack" id="r"><label class="field"><span>Motivo</span><select class="select-in" name="reason">${opts.map(o=>`<option>${o}</option>`).join('')}</select></label>
+      ${kind==='espera'?'<label class="field"><span>Retomar em</span><input class="input" type="date" name="return_at"></label>':''}
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Confirmar</button></div></form>`);
+    r.el.querySelector('#r').onsubmit=async e=>{e.preventDefault();const d=formData(e.target);r.close();m.close();await patch({id:l.id,situation:kind,...d},kind==='espera'?'Lead em espera.':'Lead arquivado.');};
+  }
+}
+
+function generate(l){
+  PF.contractForm({lead:l,onDone:async()=>{await load();}});
 }
 
 document.getElementById('newLead').onclick=()=>{
-  const m=PF.modal(`<div class="modal-head"><h3>Novo lead</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
-  <form class="stack" id="nl"><div class="grid g2"><label class="field"><span>Empresa</span><input class="input" name="name" required></label><label class="field"><span>Segmento</span><input class="input" name="seg"></label></div>
-  <div class="grid g2"><label class="field"><span>Contato</span><input class="input" name="contact" required></label><label class="field"><span>WhatsApp</span><input class="input" name="phone" placeholder="(48) 9 0000-0000"></label></div>
-  <div class="grid g2"><label class="field"><span>Email</span><input class="input" name="email" type="email"></label><label class="field"><span>Origem</span><select class="select-in" name="src">${['Meta Ads','Prospecção','WhatsApp','Site','Indicação'].map(o=>`<option>${o}</option>`).join('')}</select></label></div>
-  <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`);
-  m.el.querySelector('#nl').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));leads.unshift({id:'n'+Date.now(),...d,phone:d.phone||'',email:d.email||'',stage:'novo',owner:'',interest:'—'});m.close();render();PF.toast('Lead adicionado em Novo lead.','ok');};
+  const m=PF.modal(`<div class="modal-head"><div><h3>Novo lead</h3><p class="muted small">Entra na coluna "Novo lead". Esses dados vão para o contrato e para o cadastro do cliente.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  <form class="stack" id="nl">${fields({})}
+  <label class="field"><span>Anotações da triagem</span><textarea class="input" name="notes" style="min-height:80px"></textarea></label>
+  <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`,{side:true});
+  m.el.querySelector('#nl').onsubmit=async e=>{e.preventDefault();try{await PF.api('/api/leads',{method:'POST',body:formData(e.target)});m.close();PF.toast('Lead adicionado em Novo lead.','ok');load();}catch(x){PF.toast(x.message,'err');}};
 };
-render();
+document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();render();};
+render();load();
 </script>
 </body>
 </html>

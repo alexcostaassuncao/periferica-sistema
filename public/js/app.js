@@ -6,34 +6,34 @@
   const MENU=[
     {href:'inicio.html',icon:'home',label:'Início'},
     {group:'Clientes',icon:'users',items:[
-      {href:'comercial.html',icon:'user-round-search',label:'Comercial'},
-      {href:'contratos.html',icon:'file-signature',label:'Contratos'},
-      {href:'clientes.html',icon:'contact',label:'Clientes'},
+      {area:'comercial',href:'comercial.html',icon:'user-round-search',label:'Comercial'},
+      {area:'contratos',href:'contratos.html',icon:'file-signature',label:'Contratos'},
+      {area:'clientes',href:'clientes.html',icon:'contact',label:'Clientes'},
     ]},
     {group:'Operação',icon:'layout-grid',items:[
-      {href:'onboarding.html',icon:'square-check-big',label:'Onboarding'},
-      {href:'gestao.html',icon:'square-kanban',label:'Gestão'},
-      {href:'revisao.html',icon:'eye',label:'Revisão'},
-      {href:'copy.html',icon:'pen-line',label:'Copy'},
-      {href:'design.html',icon:'palette',label:'Design'},
-      {href:'publicacoes.html',icon:'send',label:'Publicações'},
-      {href:'trafego.html',icon:'bar-chart-3',label:'Tráfego'},
-      {href:'projetos.html',icon:'folder-kanban',label:'Projetos'},
+      {area:'onboarding',href:'onboarding.html',icon:'square-check-big',label:'Onboarding'},
+      {area:'gestao',href:'gestao.html',icon:'square-kanban',label:'Gestão'},
+      {area:'revisao',href:'revisao.html',icon:'eye',label:'Revisão'},
+      {area:'copy',href:'copy.html',icon:'pen-line',label:'Copy'},
+      {area:'design',href:'design.html',icon:'palette',label:'Design'},
+      {area:'publicacoes',href:'publicacoes.html',icon:'send',label:'Publicações'},
+      {area:'trafego',href:'trafego.html',icon:'bar-chart-3',label:'Tráfego'},
+      {area:'projetos',href:'projetos.html',icon:'folder-kanban',label:'Projetos'},
     ]},
     {group:'Financeiro · Direção',icon:'chart-no-axes-column',items:[
-      {href:'financeiro.html',icon:'receipt-text',label:'Controle de contratos'},
-      {href:'financeiro.html#renovacoes',icon:'clock',label:'Renovações'},
-      {href:'financeiro.html#cancelamentos',icon:'folder-x',label:'Cancelamentos'},
-      {href:'financeiro.html#squads',icon:'chart-column',label:'Rentabilidade por squad'},
+      {area:'financeiro',href:'financeiro.html',icon:'receipt-text',label:'Controle de contratos'},
+      {area:'financeiro',href:'financeiro.html#renovacoes',icon:'clock',label:'Renovações'},
+      {area:'financeiro',href:'financeiro.html#cancelamentos',icon:'folder-x',label:'Cancelamentos'},
+      {area:'financeiro',href:'financeiro.html#squads',icon:'chart-column',label:'Rentabilidade por squad'},
     ]},
     {group:'Equipe',icon:'users-round',items:[
-      {href:'equipe.html',icon:'user-cog',label:'Usuários'},
+      {area:'equipe',href:'equipe.html',icon:'user-cog',label:'Usuários'},
       {href:'variavel.html',icon:'chart-column-increasing',label:'Meu Variável'},
     ]},
-    {href:'agenda.html',icon:'calendar-days',label:'Agenda'},
+    {area:'agenda',href:'agenda.html',icon:'calendar-days',label:'Agenda'},
     {group:'Configurações',icon:'settings',items:[
-      {href:'configuracoes.html',icon:'share-2',label:'Redes sociais'},
-      {href:'portal.html',icon:'monitor-smartphone',label:'Portal do cliente'},
+      {area:'configuracoes',href:'configuracoes.html',icon:'share-2',label:'Redes sociais'},
+      {area:'configuracoes',href:'portal.html',icon:'monitor-smartphone',label:'Portal do cliente'},
     ]},
   ];
 
@@ -43,8 +43,10 @@
   const PALETTE=['#ff580b','#8b5cf6','#1e90ff','#1fd59a','#f43f5e','#f6b51e','#14b8a6','#ec4899','#64748b','#0ea5e9'];
   const colorOf=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];};
 
-  function nav(){
-    return MENU.map(m=>{
+  // areas: lista de áreas liberadas (null = ainda não sabemos; mostra só o Início).
+  const allowed=(i,areas)=>!i.area||areas===true||(Array.isArray(areas)&&areas.includes(i.area));
+  function nav(areas){
+    return MENU.map(m=>m.group?{...m,items:m.items.filter(i=>allowed(i,areas))}:m).filter(m=>m.group?m.items.length:allowed(m,areas)).map(m=>{
       if(!m.group)return `<a href="${m.href}" class="${m.href===page?'active':''}"><i data-lucide="${m.icon}"></i>${m.label}</a>`;
       const open=m.items.some(i=>i.href.split('#')[0]===page);
       return `<div class="group ${open?'open':''}">
@@ -54,7 +56,9 @@
     }).join('');
   }
 
-  const PF={esc,initials,colorOf,user:{name:'Sabrina',role:'Direção'}};
+  const PF={esc,initials,colorOf,user:{name:'',role:''}};
+  const cached=()=>{try{return JSON.parse(sessionStorage.getItem('pf-areas')||'null');}catch{return null;}};
+  function bindNav(){document.querySelectorAll('#sidebar .grp').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('open'));}
 
   // Monta menu lateral + topo. opts: {title, subtitle, crumbs:[[label,href]], search, actions(html)}
   PF.shell=function(opts={}){
@@ -63,10 +67,10 @@
     body.innerHTML=`<div class="app">
       <aside class="sidebar" id="sidebar">
         <a class="logo" href="inicio.html">PERIFÉRICA</a>
-        <nav class="nav">${nav()}</nav>
+        <nav class="nav" id="nav">${nav(cached())}</nav>
         <button class="user" type="button" id="userBtn" title="Sair">
-          <div class="avatar" id="meAvatar">SA</div>
-          <div><div class="name" id="meName">Sabrina</div><div class="role" id="meRole">Direção</div></div>
+          <div class="avatar" id="meAvatar"></div>
+          <div><div class="name" id="meName"></div><div class="role" id="meRole"></div></div>
           <i data-lucide="chevron-right"></i>
         </button>
       </aside>
@@ -91,9 +95,11 @@
     const sb=document.getElementById('sidebar'),scrim=document.getElementById('scrim');
     document.getElementById('menuBtn').onclick=()=>{sb.classList.add('open');scrim.classList.add('show');};
     scrim.onclick=()=>{sb.classList.remove('open');scrim.classList.remove('show');};
-    sb.querySelectorAll('.grp').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('open'));
+    bindNav();
+    if(new URLSearchParams(location.search).has('sem-acesso'))setTimeout(()=>PF.toast('Você não tem acesso a essa área. Fale com a direção.','err'),300);
     document.getElementById('userBtn').onclick=async()=>{
       if(!confirm('Sair do sistema?'))return;
+      try{sessionStorage.removeItem('pf-areas');}catch{}
       await fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});location.href='login.html';
     };
     PF.loadMe();
@@ -103,7 +109,10 @@
   PF.loadMe=async function(){
     try{
       const r=await fetch('/api/auth/me');if(!r.ok)return;
-      const u=await r.json();PF.user={...PF.user,...u,role:u.admin?'Direção':'Equipe'};
+      const u=await r.json();PF.user={...PF.user,...u,role:u.access||(u.admin?'Administrador':'Equipe')};
+      const areas=u.admin?true:(u.areas||[]);
+      try{sessionStorage.setItem('pf-areas',JSON.stringify(areas));}catch{}
+      document.getElementById('nav').innerHTML=nav(areas);bindNav();PF.icons();
       document.getElementById('meName').textContent=u.name.split(' ')[0];
       document.getElementById('meRole').textContent=PF.user.role;
       document.getElementById('meAvatar').textContent=initials(u.name);

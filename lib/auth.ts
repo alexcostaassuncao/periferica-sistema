@@ -1,7 +1,8 @@
 import {database} from '../db/raw';
 import {readSession,sha256,type SessionPayload} from './session';
+import {AREA_KEYS} from './access';
 
-export type SessionUser={id:string;name:string;email:string;access:string;admin:boolean};
+export type SessionUser={id:string;name:string;email:string;access:string;admin:boolean;areas:string[]};
 
 // O administrador principal vem das variáveis ADMIN_EMAIL e ADMIN_PASSWORD (configuradas na Vercel).
 // Assim sempre existe um acesso, mesmo com o banco vazio.
@@ -36,11 +37,13 @@ export async function userFromSession(session:SessionPayload|null):Promise<Sessi
   if(session.m==='env'){
     const admin=envAdmin();
     if(!admin||session.uid!=='admin'||session.pv!==await envAdminVersion())return null;
-    return {id:'admin',name:admin.name,email:admin.email,access:'Administrador',admin:true};
+    return {id:'admin',name:admin.name,email:admin.email,access:'Administrador',admin:true,areas:AREA_KEYS};
   }
-  const row:any=await database().prepare('SELECT id,name,email,access,password_hash FROM users WHERE id=?').bind(session.uid).first();
-  if(!row||!row.password_hash||session.pv!==await passwordVersion(row.password_hash))return null;
-  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin:row.access==='Administrador'};
+  const row:any=await database().prepare('SELECT id,name,email,access,password_hash,areas,active FROM users WHERE id=?').bind(session.uid).first();
+  if(!row||!row.password_hash||!row.active||session.pv!==await passwordVersion(row.password_hash))return null;
+  const admin=row.access==='Administrador';
+  let areas:string[]=[];try{areas=JSON.parse(row.areas||'[]');}catch{}
+  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin,areas:admin?AREA_KEYS:areas};
 }
 
 export async function userFromToken(token:string|undefined){return userFromSession(await readSession(token));}
@@ -49,7 +52,11 @@ export async function userFromToken(token:string|undefined){return userFromSessi
 export function currentUser(req:Request){
   const h=req.headers;const id=h.get('x-pf-user-id');
   if(!id)return null;
-  return {id,name:decodeURIComponent(h.get('x-pf-user-name')||''),email:decodeURIComponent(h.get('x-pf-user-email')||''),admin:h.get('x-pf-admin')==='1'};
+  const admin=h.get('x-pf-admin')==='1';
+  return {id,name:decodeURIComponent(h.get('x-pf-user-name')||''),email:decodeURIComponent(h.get('x-pf-user-email')||''),admin,
+    access:decodeURIComponent(h.get('x-pf-access')||''),areas:(h.get('x-pf-areas')||'').split(',').filter(Boolean)};
 }
 export function isAdmin(req:Request){return currentUser(req)?.admin===true;}
+// Usuário logado com acesso à área (o administrador tem todas).
+export function canAccess(req:Request,area:string){const u=currentUser(req);return !!u&&(u.admin||u.areas.includes(area));}
 export function sameOrigin(req:Request){return req.headers.get('Origin')===new URL(req.url).origin;}

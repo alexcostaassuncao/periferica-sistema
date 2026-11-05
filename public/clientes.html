@@ -104,6 +104,9 @@ function renderDetail(){
       <h2>${PF.esc(c.name)} ${PF.badge(c.status==='ativo'?'Cliente ativo':STATUS[c.status]?.[0]||c.status,STATUS[c.status]?.[1]||'gray')}</h2>
       <div class="muted small">${PF.esc(c.segment||'Segmento não informado')}${c.squad?' · Squad '+c.squad:''}</div>
       <div class="facts"><div><i data-lucide="calendar"></i><div>${new Date(c.created_at).toLocaleDateString('pt-BR')}<small>Cliente desde</small></div></div>
+        ${c.contact_name?`<div><i data-lucide="user"></i><div>${PF.esc(c.contact_name)}<small>Responsável</small></div></div>`:''}
+        ${c.phone?`<div><i data-lucide="phone"></i><div><a href="https://wa.me/55${c.phone.replace(/\D/g,'')}" target="_blank" rel="noopener">${PF.esc(c.phone)}</a><small>Telefone</small></div></div>`:''}
+        ${c.email?`<div><i data-lucide="mail"></i><div><a href="mailto:${PF.esc(c.email)}">${PF.esc(c.email)}</a><small>E-mail</small></div></div>`:''}
         <div><i data-lucide="instagram"></i><div>${ig?'@'+PF.esc(ig.username):'Não conectado'}<small>Instagram</small></div></div>
         <div><i data-lucide="facebook"></i><div>${fb?PF.esc(fb.name):'Não conectada'}<small>Página do Facebook</small></div></div></div>
     </div>

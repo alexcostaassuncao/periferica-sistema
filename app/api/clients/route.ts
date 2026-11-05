@@ -1,16 +1,16 @@
 import {database} from '../../../db/raw';
-import {isAdmin,sameOrigin} from '../../../lib/auth';
+import {canAccess,sameOrigin} from '../../../lib/auth';
 
 // Lista os clientes com as redes sociais vinculadas a cada um.
 export async function GET(){
   const db=database();
-  const clients=(await db.prepare('SELECT id,name,segment,squad,services,status,created_at FROM clients ORDER BY name').all()).results;
+  const clients=(await db.prepare('SELECT id,name,segment,squad,services,status,created_at,contact_name,phone,email,lead_id FROM clients ORDER BY name').all()).results;
   const accounts=(await db.prepare('SELECT id,client_id,network,name,username,picture FROM social_accounts WHERE client_id IS NOT NULL').all()).results as any[];
   return Response.json({clients:clients.map((c:any)=>({...c,social:accounts.filter(a=>a.client_id===c.id)}))},{headers:{'Cache-Control':'no-store'}});
 }
 
 export async function POST(req:Request){
-  if(!isAdmin(req)||!sameOrigin(req))return Response.json({error:'Acesso restrito ao administrador.'},{status:403});
+  if(!canAccess(req,'clientes')||!sameOrigin(req))return Response.json({error:'Você não tem acesso ao cadastro de clientes.'},{status:403});
   const p:any=await req.json().catch(()=>({}));
   const name=String(p.name||'').trim().slice(0,120);
   if(name.length<2)return Response.json({error:'Informe o nome do cliente.'},{status:400});
@@ -23,7 +23,7 @@ export async function POST(req:Request){
 
 // Atualiza campos do cliente (squad, status, segmento, serviços, nome).
 export async function PATCH(req:Request){
-  if(!isAdmin(req)||!sameOrigin(req))return Response.json({error:'Acesso restrito ao administrador.'},{status:403});
+  if(!canAccess(req,'clientes')||!sameOrigin(req))return Response.json({error:'Você não tem acesso ao cadastro de clientes.'},{status:403});
   const p:any=await req.json().catch(()=>({}));
   const sets:string[]=[],args:any[]=[];
   if(typeof p.name==='string'&&p.name.trim().length>=2){sets.push('name=?');args.push(p.name.trim().slice(0,120));}

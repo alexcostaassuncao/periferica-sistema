@@ -3,25 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Periférica · Equipe</title>
+<title>Periférica · Usuários</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/app.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
+<style>
+  .areas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .areas label,.sq label{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:9px;padding:8px 10px;font-size:12.5px;cursor:pointer}
+  .areas label:has(input:checked),.sq label:has(input:checked){border-color:var(--orange);background:var(--orange-soft)}
+  .areas.locked{opacity:.55;pointer-events:none}
+  .sq{display:flex;gap:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;max-width:340px}
+  .pw-box{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .tbl tr.off td{opacity:.5}
+  @media (max-width:700px){.areas{grid-template-columns:1fr 1fr}}
+</style>
 </head>
 <body>
 <script>
-const content=PF.shell({title:'Usuários',subtitle:'Gestão dos usuários, cargos e acessos.',crumbs:[['Equipe'],['Usuários']],search:'Buscar pessoa...',
-  actions:`<button class="btn btn-primary"><i data-lucide="user-plus"></i>Convidar usuário</button>`});
-const people=[['Sabrina','Direção','Administrador','Todos'],['Tiago Dal Molin','Direção / Financeiro','Administrador','Todos'],['Juliana Ferreira','Consultora','Gestão','C1'],['Carla Mendes','Copy','Produção','C1'],['Djenifer Lima','Design','Produção','C1, C2'],['Lucas Teixeira','Tráfego','Produção','Todos'],['Fernando','Projetos','Projetos','—'],['João','Comercial','Comercial','—']];
-content.innerHTML=`
-<div class="note info mb"><i data-lucide="shield-check"></i><div><b>Acesso por permissão:</b> o menu é único, mas cada pessoa só vê as áreas da sua função. O login de cada usuário entra na próxima etapa. Hoje o acesso é pelo administrador definido na Vercel.</div></div>
-<div class="card"><div class="card-head"><h2>Equipe</h2>${PF.demo()}</div>
-<div class="table-wrap"><table class="tbl"><thead><tr><th>Pessoa</th><th>Cargo</th><th>Perfil de acesso</th><th>Squads</th><th>Situação</th></tr></thead><tbody>
-${people.map(([n,c,a,s])=>`<tr><td><div class="who">${PF.avatar(n,'md')}<b>${n}</b></div></td><td>${c}</td><td>${PF.badge(a,a==='Administrador'?'orange':'gray')}</td><td>${s}</td><td>${PF.badge('Ativo','green')}</td></tr>`).join('')}
-</tbody></table></div></div>`;
-PF.icons();
+const content=PF.shell({title:'Usuários',subtitle:'Cadastro da equipe e o que cada pessoa pode acessar no sistema.',crumbs:[['Equipe'],['Usuários']],search:'Buscar pessoa...',
+  actions:`<button class="btn btn-primary" id="newU"><i data-lucide="user-plus"></i>Novo usuário</button>`});
+let D={users:[],areas:[],profiles:{},mail:false,me:''},q='';
+
+async function load(){
+  try{D=await PF.api('/api/users');}catch(e){PF.toast(e.message,'err');}
+  render();
+}
+const areaName=k=>(D.areas.find(a=>a[0]===k)||[k,k])[1];
+
+function render(){
+  const list=D.users.filter(u=>!q||(u.name+' '+u.email+' '+u.role).toLowerCase().includes(q));
+  const active=D.users.filter(u=>u.active);
+  content.innerHTML=`
+  <section class="grid g4 mb">
+    ${PF.kpi({icon:'users',color:'orange',value:String(active.length),label:'Usuários ativos'})}
+    ${PF.kpi({icon:'shield-check',color:'purple',value:String(active.filter(u=>u.access==='Administrador').length),label:'Administradores'})}
+    ${PF.kpi({icon:'mail',color:'yellow',value:String(active.filter(u=>!u.has_password).length),label:'Aguardando criar senha'})}
+    ${PF.kpi({icon:'user-x',color:'gray',value:String(D.users.length-active.length),label:'Desativados'})}
+  </section>
+  ${D.mail?'':`<div class="note mb"><i data-lucide="mail-warning"></i><div>O envio de emails ainda não está configurado na Vercel, então o <b>convite por email</b> não funciona. Por enquanto, defina uma <b>senha inicial</b> no cadastro e passe para a pessoa.</div></div>`}
+  <div class="card">
+    <div class="card-head"><div><h2>Equipe</h2><p>O menu é único, mas cada pessoa só vê as áreas marcadas no cadastro dela.</p></div></div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Pessoa</th><th>Cargo</th><th>Perfil de acesso</th><th>Áreas</th><th>Squads</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${list.map(u=>`<tr class="${u.active?'':'off'}"><td><div class="who">${PF.avatar(u.name,'md')}<div><b>${PF.esc(u.name)}${u.id===D.me?' <span class="muted tiny">(você)</span>':''}</b><small>${PF.esc(u.email)}</small></div></div></td>
+      <td>${PF.esc(u.role||'—')}</td>
+      <td>${PF.badge(u.access,u.access==='Administrador'?'orange':u.access==='Personalizado'?'purple':'blue')}</td>
+      <td>${u.access==='Administrador'?'<span class="small">Todas</span>':`<div class="chips">${u.areas.map(a=>PF.badge(areaName(a),'gray')).join('')||'<span class="muted small">Só o Início</span>'}</div>`}</td>
+      <td>${PF.esc(u.squads||'—')}</td>
+      <td>${!u.active?PF.badge('Desativado','gray'):u.has_password?PF.badge('Ativo','green'):PF.badge('Convite enviado','yellow')}</td>
+      <td class="right">${u.env?'<span class="muted tiny" title="Definido nas variáveis da Vercel">Administrador principal</span>':`<button class="btn btn-ghost btn-sm" data-edit="${u.id}"><i data-lucide="pencil"></i>Editar</button>`}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+  PF.icons();
+  content.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>form(D.users.find(u=>u.id===b.dataset.edit)));
+}
+
+function form(u){
+  const isNew=!u;u=u||{name:'',email:'',role:'',access:'Comercial',areas:D.profiles['Comercial'],squads:'',active:true};
+  const profiles=[...Object.keys(D.profiles),'Personalizado'];
+  const m=PF.modal(`<div class="modal-head"><div><h3>${isNew?'Novo usuário':'Editar usuário'}</h3><p class="muted small">${isNew?'Cadastre a pessoa e escolha o que ela pode acessar.':PF.esc(u.email)}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  <form class="stack" id="f">
+    <div class="grid g2"><label class="field"><span>Nome</span><input class="input" name="name" required value="${PF.esc(u.name)}"></label>
+      <label class="field"><span>Cargo</span><input class="input" name="role" value="${PF.esc(u.role)}" placeholder="Ex.: Consultora, Copy, Designer"></label></div>
+    ${isNew?`<label class="field"><span>Email (é o login)</span><input class="input" type="email" name="email" required></label>`:''}
+    <label class="field"><span>Perfil de acesso</span><select class="select-in" name="access" id="profile">${profiles.map(p=>`<option ${p===u.access?'selected':''}>${p}</option>`).join('')}</select>
+      <small class="muted tiny">Escolher um perfil marca as áreas abaixo. Você pode ajustar e ele vira "Personalizado".</small></label>
+    <div class="field"><span>Áreas que pode acessar</span><div class="areas" id="areas">${D.areas.map(([k,l])=>`<label><input type="checkbox" class="chk" name="area" value="${k}" ${u.access==='Administrador'||u.areas.includes(k)?'checked':''}>${l}</label>`).join('')}</div>
+      <small class="muted tiny">Início e Meu Variável aparecem para todos.</small></div>
+    <div class="field"><span>Squads</span><div class="sq">${['C1','C2','C3'].map(s=>`<label><input type="checkbox" class="chk" name="sq" value="${s}" ${String(u.squads).includes(s)?'checked':''}>${s}</label>`).join('')}</div></div>
+    <div class="pw-box">
+      ${isNew?`<label class="row small"><input type="checkbox" class="chk" name="invite" ${D.mail?'checked':'disabled'}>Enviar convite por email para a pessoa criar a própria senha${D.mail?'':' <span class="muted tiny">(email não configurado)</span>'}</label>
+        <label class="field" id="pwField"><span>Ou defina uma senha inicial</span><input class="input" type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></label>`
+      :`<label class="field"><span>Nova senha <small class="muted">(deixe em branco para não mudar)</small></span><input class="input" type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password"></label>
+        ${D.mail?`<button type="button" class="btn btn-ghost btn-sm" id="reinvite" style="align-self:flex-start"><i data-lucide="mail"></i>Enviar link para criar nova senha</button>`:''}
+        <label class="row small"><input type="checkbox" class="chk" name="active" ${u.active?'checked':''} ${u.id===D.me?'disabled':''}>Acesso ativo ${u.id===D.me?'<span class="muted tiny">(você não pode se desativar)</span>':''}</label>`}
+    </div>
+    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="save">${isNew?'Cadastrar':'Salvar'}</button></div>
+  </form>`,{side:true});
+  const f=m.el.querySelector('#f'),F=f.elements,prof=m.el.querySelector('#profile'),box=m.el.querySelector('#areas');
+  const lock=()=>box.classList.toggle('locked',prof.value==='Administrador');
+  prof.onchange=()=>{const set=D.profiles[prof.value];if(set)box.querySelectorAll('input').forEach(i=>i.checked=set.includes(i.value));lock();};
+  box.onchange=()=>{const chosen=[...box.querySelectorAll('input:checked')].map(i=>i.value).sort().join();const match=Object.entries(D.profiles).find(([,a])=>[...a].sort().join()===chosen);prof.value=match?match[0]:'Personalizado';lock();};
+  lock();
+  const rei=m.el.querySelector('#reinvite');if(rei)rei.onclick=async()=>{try{await PF.api('/api/users',{method:'PATCH',body:{id:u.id,action:'invite'}});PF.toast('Link enviado para '+u.email+'.','ok');}catch(e){PF.toast(e.message,'err');}};
+  f.onsubmit=async e=>{
+    e.preventDefault();
+    const body={name:F.name.value,role:F.role.value,access:prof.value,areas:[...box.querySelectorAll('input:checked')].map(i=>i.value),
+      squads:[...f.querySelectorAll('[name=sq]:checked')].map(i=>i.value).join(', '),password:F.password.value};
+    const btn=m.el.querySelector('#save');btn.disabled=true;
+    try{
+      if(isNew){
+        body.email=F.email.value;body.invite=!!F.invite?.checked;
+        const r=await PF.api('/api/users',{method:'POST',body});
+        PF.toast(r.invited?'Usuário cadastrado e convite enviado por email.':r.inviteFailed?'Usuário cadastrado, mas o email do convite não saiu. Defina uma senha em Editar.':'Usuário cadastrado. Passe o email e a senha para a pessoa.',r.inviteFailed?'err':'ok');
+      }else{
+        if(F.active&&!F.active.disabled)body.active=F.active.checked;
+        await PF.api('/api/users',{method:'PATCH',body:{id:u.id,...body}});PF.toast('Usuário atualizado.','ok');
+      }
+      m.close();load();
+    }catch(x){PF.toast(x.message,'err');btn.disabled=false;}
+  };
+}
+document.getElementById('newU').onclick=()=>form(null);
+document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();render();};
+load();
 </script>
 </body>
 </html>

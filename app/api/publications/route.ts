@@ -1,5 +1,5 @@
 import {database} from '../../../db/raw';
-import {currentUser,sameOrigin} from '../../../lib/auth';
+import {canAccess,currentUser,sameOrigin} from '../../../lib/auth';
 import {FORMATS,processPublication,processTarget,publicMediaUrl,validateMedia,type Format,type MediaItem} from '../../../db/publish';
 import {NETWORKS} from '../../../db/social';
 
@@ -8,6 +8,7 @@ const json=(data:any,status=200)=>Response.json(data,{status,headers:{'Cache-Con
 
 // Lista publicações (com o status de cada rede). Filtros opcionais: ?client=ID&from=ms&to=ms
 export async function GET(req:Request){
+  if(!canAccess(req,'publicacoes'))return json({error:'Você não tem acesso às Publicações.'},403);
   const q=new URL(req.url).searchParams;
   const where:string[]=[],args:any[]=[];
   if(q.get('client')){where.push('p.client_id=?');args.push(q.get('client'));}
@@ -24,7 +25,7 @@ export async function GET(req:Request){
 // Cria uma publicação: mode=now publica na hora; mode=schedule entra na fila para o horário escolhido.
 export async function POST(req:Request){
   const user=currentUser(req);
-  if(!user||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
+  if(!user||!canAccess(req,'publicacoes')||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
   try{
     const p:any=await req.json();
     const db=database();
@@ -69,7 +70,7 @@ export async function POST(req:Request){
 //   retry    reenvia um destino com falha (ou "não confirmado", depois de conferir no perfil)
 //   confirm  marca como publicado um destino "não confirmado" que foi conferido no perfil
 export async function PATCH(req:Request){
-  if(!currentUser(req)||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
+  if(!canAccess(req,'publicacoes')||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
   const {id,publicationId,action}=await req.json().catch(()=>({})) as {id?:string;publicationId?:string;action?:string};
   const db=database();
   if(action==='process'&&publicationId){await processPublication(publicationId);return json({ok:true});}
@@ -89,7 +90,7 @@ export async function PATCH(req:Request){
 
 // Cancela os envios que ainda não começaram a etapa final.
 export async function DELETE(req:Request){
-  if(!currentUser(req)||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
+  if(!canAccess(req,'publicacoes')||!sameOrigin(req))return json({error:'Acesso restrito.'},403);
   const {id}=await req.json().catch(()=>({})) as {id?:string};
   if(!id)return json({error:'Publicação inválida.'},400);
   const r=await database().prepare("UPDATE publication_targets SET status='cancelled',updated_at=? WHERE publication_id=? AND status IN ('queued','processing') AND lease_until<?").bind(Date.now(),id,Date.now()).run();

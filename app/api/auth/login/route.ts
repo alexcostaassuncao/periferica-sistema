@@ -16,11 +16,11 @@ export async function POST(req:Request){
     const key='email:'+email;
     if(await blocked(key))return Response.json({error:'Muitas tentativas. Aguarde 15 minutos e tente novamente.'},{status:429});
     const admin=envAdmin();
-    const row:any=await database().prepare('SELECT id,password_hash FROM users WHERE email=?').bind(email).first();
+    const row:any=await database().prepare('SELECT id,password_hash,active FROM users WHERE email=?').bind(email).first();
     let token:string|null=null;
     // Depois que o administrador redefine a senha, vale a do banco (a da Vercel deixa de valer).
     if(admin&&email===admin.email&&!row?.password_hash&&password===admin.password)token=await signSession({uid:'admin',m:'env',pv:await envAdminVersion()});
-    else if(row?.password_hash&&await verifyPassword(password,row.password_hash))token=await signSession({uid:row.id,m:'db',pv:await passwordVersion(row.password_hash)});
+    else if(row?.password_hash&&row.active&&await verifyPassword(password,row.password_hash))token=await signSession({uid:row.id,m:'db',pv:await passwordVersion(row.password_hash)});
     if(!token){
       await fail(key);
       if(!admin&&!row)return Response.json({error:'O login do administrador ainda não foi configurado. Defina ADMIN_EMAIL e ADMIN_PASSWORD na Vercel e faça Redeploy.'},{status:503});
