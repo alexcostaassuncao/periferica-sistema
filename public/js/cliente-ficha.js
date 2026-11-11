@@ -90,11 +90,17 @@
     }
 
     function servicos(p){
-      p.innerHTML=`<div class="card"><div class="card-head"><div><h3>Serviços e contratos</h3><p>Todos os contratos ligados a este cliente.</p></div><a class="btn btn-ghost btn-sm" href="contratos.html"><i data-lucide="file-signature"></i>Ir para Contratos</a></div>
+      const signed=D.contracts.find(k=>k.status==='assin'&&k.kind==='Gestão');
+      p.innerHTML=`<div class="card mb"><div class="card-head"><div><h3>O que o plano inclui</h3><p>Entregas do plano por categoria. São os mesmos dados que aparecem na Gestão.</p></div>
+          ${signed?`<a class="btn btn-ghost btn-sm" href="/api/contracts/pdf?id=${signed.id}" target="_blank" rel="noopener"><i data-lucide="file-text"></i>Ver contrato (${esc(signed.model)})</a>`:''}</div>
+          <div id="entEd"></div>
+          <p class="muted tiny" style="margin-top:6px">O contrato assinado não muda: as entregas ficam no cadastro do plano e cada alteração vai para o histórico.</p></div>
+        <div class="card"><div class="card-head"><div><h3>Serviços e contratos</h3><p>Todos os contratos ligados a este cliente.</p></div><a class="btn btn-ghost btn-sm" href="contratos.html"><i data-lucide="file-signature"></i>Ir para Contratos</a></div>
         ${D.contracts.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Serviço</th><th>Plano / modelo</th><th>Valor</th><th>Modalidade</th><th>Status</th><th>Assinado em</th><th></th></tr></thead><tbody>
         ${D.contracts.map(k=>`<tr><td>${esc(k.kind)}</td><td><b>${esc(k.model)}</b></td><td>${esc(k.value||'—')}</td><td>${esc(k.term||'—')}</td><td>${PF.badge(...(CST[k.status]||[k.status,'gray']))}</td><td>${fdt(k.signed_at)}</td>
           <td class="right">${k.kind==='Gestão'||/site|e-?commerce/i.test(k.model)?`<a class="icon-btn" title="Ver PDF" href="/api/contracts/pdf?id=${k.id}" target="_blank" rel="noopener"><i data-lucide="file-text"></i></a>`:''}</td></tr>`).join('')}
         </tbody></table></div>`:'<div class="empty"><i data-lucide="file-x"></i><div>Nenhum contrato ligado a este cliente.</div></div>'}</div>`;
+      PF.Entregas.editor(p.querySelector('#entEd'),id,{onSaved:load});
     }
 
     function docs(p){

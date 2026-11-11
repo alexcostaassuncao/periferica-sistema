@@ -7,6 +7,7 @@ import {mailReady,sendMail} from '../../../lib/mail';
 import {sha256} from '../../../lib/session';
 import {siteOrigin} from '../../../db/social';
 import {logEvent} from '../../../db/clientes';
+import {saveFromContractData} from '../../../db/entregas';
 
 // Contratos: gerados a partir de um lead fechado (ou manualmente), enviados para assinatura e,
 // quando assinados, viram cliente automaticamente com os dados do cadastro do lead.
@@ -138,6 +139,8 @@ export async function PATCH(req:Request){
     const ops=[db.prepare('UPDATE contracts SET client_id=? WHERE id=?').bind(clientId,claimed.id)];
     if(claimed.lead_id)ops.push(db.prepare('UPDATE leads SET client_id=?,updated_at=? WHERE id=?').bind(clientId,now,claimed.lead_id));
     await db.batch(ops);
+    // Entregas do plano preenchidas no contrato viram o "o que o plano inclui" do cliente.
+    try{await saveFromContractData(clientId,JSON.parse(claimed.data||'{}'),currentUser(req)?.name||'');}catch{}
     await logEvent(clientId,'sistema',`Contrato assinado: ${claimed.kind} – ${claimed.model}`,claimed.value?`Valor: ${claimed.value}`:'',currentUser(req));
     return json({ok:true,clientId});
   }
