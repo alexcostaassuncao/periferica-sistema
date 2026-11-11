@@ -15,11 +15,12 @@ const has=(u:U,a:string)=>u.admin||u.areas.includes(a);
 export const canSeeTasks=(u:U|null)=>!!u&&['gestao','copy','design','revisao'].some(a=>has(u,a));
 
 /* Regra de carteira: quem tem carteiras (C1, C2...) no cadastro vê os clientes dessas carteiras,
-   os clientes em que está na equipe interna e as tarefas em que é responsável. Sem carteira = vê todas. */
+   os clientes em que está na equipe interna, as tarefas em que é responsável e os clientes ainda SEM carteira
+   (para ninguém perder um cliente novo de vista). Usuário sem carteira no cadastro = vê todos. */
 export function visibilitySql(u:U,alias='t'){
   if(u.admin||!u.squads.length)return {sql:'1=1',args:[] as any[]};
   return {
-    sql:`(c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=c.id AND ct.user_id=?) OR ${alias}.responsible_id=? OR ${alias}.assignee_id=? OR ${alias}.created_by=?)`,
+    sql:`(COALESCE(c.squad,'')='' OR c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=c.id AND ct.user_id=?) OR ${alias}.responsible_id=? OR ${alias}.assignee_id=? OR ${alias}.created_by=?)`,
     args:[...u.squads,u.id,u.id,u.id,u.id],
   };
 }

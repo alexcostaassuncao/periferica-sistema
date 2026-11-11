@@ -55,7 +55,7 @@ async function lista(){
       </div>
       ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Carteira</th><th>Consultora</th><th>Plano contratado</th><th>Tarefas</th><th>Atrasadas</th><th>Próxima reunião</th><th></th></tr></thead><tbody>
       ${list.map(c=>{const [dt,tt]=(c.proxima||'').split('|');return `<tr><td><a class="who" href="gestao.html?id=${c.id}">${PF.chip(c.name)}<div><b>${esc(c.name)}</b><small>${esc(c.segment||'—')}${c.phase==='onboarding'?' · em onboarding':''}</small></div></a></td>
-        <td>${c.squad?PF.badge(c.squad,'orange'):'—'}</td><td>${esc(c.consultora||'—')}</td><td>${esc(c.plano||c.services||'—')}${c.plano_valor?`<div class="muted tiny">${esc(c.plano_valor)}</div>`:''}</td>
+        <td>${c.squad?PF.badge(c.squad,'orange'):`<a href="clientes.html?id=${c.id}" title="Definir carteira na ficha do cliente">${PF.badge('Sem carteira','yellow')}</a>`}</td><td>${c.consultora?esc(c.consultora):`<a class="link tiny" href="clientes.html?id=${c.id}">definir</a>`}</td><td>${esc(c.plano||c.services||'—')}${c.plano_valor?`<div class="muted tiny">${esc(c.plano_valor)}</div>`:''}</td>
         <td>${c.abertas}</td><td>${c.atrasadas?PF.badge(String(c.atrasadas),'solid-red'):'0'}</td><td class="small">${dt?fdt(dt.split(' ')[0])+' '+dt.split(' ')[1]+'<div class="muted tiny">'+esc(tt)+'</div>':'—'}</td>
         <td class="right"><a class="btn btn-ghost btn-sm" href="gestao.html?id=${c.id}">Abrir</a></td></tr>`;}).join('')}</tbody></table></div>`
       :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros. Clientes entram na Gestão quando o onboarding é concluído.</div></div>`}
@@ -90,6 +90,7 @@ async function cliente(){
         <a class="link tiny" href="clientes.html?id=${c.id}">Abrir ficha completa do cliente</a></div></div>
       <div class="row" style="gap:18px"><div><div class="muted tiny">Tarefas em andamento</div><b style="font-size:20px">${abertas}</b></div><div><div class="muted tiny">Aprovadas</div><b style="font-size:20px">${feitas}</b></div></div>
     </div></div>
+    ${!c.squad||!D.team.find(t=>t.role==='consultora'&&t.user_id)?`<div class="note mb"><i data-lucide="triangle-alert"></i><div>Este cliente ainda está sem ${!c.squad?'<b>carteira</b>':''}${!c.squad&&!D.team.find(t=>t.role==='consultora'&&t.user_id)?' e sem ':''}${!D.team.find(t=>t.role==='consultora'&&t.user_id)?'<b>consultora</b>':''}. <a class="link" href="clientes.html?id=${c.id}">Definir na ficha do cliente → aba Equipe</a></div></div>`:''}
     <div class="tabs">${[['geral','Visão geral'],['reunioes','Reuniões e atas'],['tarefas','Tarefas ('+T.length+')'],['historico','Histórico']].map(([k,l])=>`<button data-t="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}</div>
     <div id="pane"></div>`;
     const p=content.querySelector('#pane');

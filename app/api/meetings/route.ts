@@ -16,7 +16,7 @@ const hhmm=/^([01]\d|2[0-3]):[0-5]\d$/;
 // Regra de carteira: reuniões de clientes fora da carteira do usuário não aparecem (internas aparecem).
 function vis(u:U){
   if(u.admin||!u.squads.length)return {sql:'1=1',args:[] as any[]};
-  return {sql:`(m.client_id IS NULL OR c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=m.client_id AND ct.user_id=?) OR m.participants LIKE ?)`,
+  return {sql:`(m.client_id IS NULL OR COALESCE(c.squad,'')='' OR c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=m.client_id AND ct.user_id=?) OR m.participants LIKE ?)`,
     args:[...u.squads,u.id,`%"${u.id}"%`]};
 }
 async function conflict(place:string,date:string,start:string,end:string,ignore:string){

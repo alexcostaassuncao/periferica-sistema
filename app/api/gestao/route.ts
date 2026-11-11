@@ -7,7 +7,7 @@ export async function GET(req:Request){
   const u=currentUser(req) as U|null;
   if(!u||!canAccess(req,'gestao'))return Response.json({error:'Você não tem acesso à Gestão.'},{status:403});
   const db=database(),hoje=new Date().toISOString().slice(0,10),mes=hoje.slice(0,7);
-  const vis=u.admin||!u.squads.length?{sql:'1=1',args:[] as any[]}:{sql:`(c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=c.id AND ct.user_id=?))`,args:[...u.squads,u.id]};
+  const vis=u.admin||!u.squads.length?{sql:'1=1',args:[] as any[]}:{sql:`(COALESCE(c.squad,'')='' OR c.squad IN (${u.squads.map(()=>'?').join(',')}) OR EXISTS (SELECT 1 FROM client_team ct WHERE ct.client_id=c.id AND ct.user_id=?))`,args:[...u.squads,u.id]};
   const clients=(await db.prepare(`SELECT c.id,c.name,c.segment,c.squad,c.status,c.phase,c.services,
       (SELECT t.user_id FROM client_team t WHERE t.client_id=c.id AND t.role='consultora') AS consultora_id,
       (SELECT u.name FROM client_team t JOIN users u ON u.id=t.user_id WHERE t.client_id=c.id AND t.role='consultora') AS consultora,

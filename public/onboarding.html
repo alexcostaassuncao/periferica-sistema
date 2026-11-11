@@ -126,7 +126,7 @@ async function detalhe(){
       <i data-lucide="${fechado?'check-circle':D.readyForGestao?'unlock':'lock'}" style="width:26px;height:26px;color:${fechado||D.readyForGestao?'var(--green)':'var(--muted)'}"></i>
       <div style="flex:1;min-width:240px"><b>${fechado?'Cliente já está na Gestão.':'Enviar para Gestão'}</b>
         <div class="muted small">${fechado?'O onboarding foi concluído.':D.readyForGestao?'Apresentação e alinhamentos concluídos. Pode liberar o cliente para a rotina de Gestão.':'Libera quando as etapas '+D.requiredSteps.map(x=>'"'+esc(x)+'"').join(' e ')+' estiverem 100% marcadas.'}</div></div>
-      ${fechado?`<a class="btn btn-ghost" href="gestao.html">Ir para Gestão</a>`:`<button class="btn btn-primary" id="send" ${D.readyForGestao?'':'disabled'}><i data-lucide="send"></i>Enviar para Gestão</button>`}
+      ${fechado?`<a class="btn btn-primary" href="gestao.html?id=${o.client_id}">Abrir na Gestão</a>`:`<button class="btn btn-primary" id="send" ${D.readyForGestao?'':'disabled'}><i data-lucide="send"></i>Enviar para Gestão</button>`}
     </div></div>`;
     PF.icons();PF.animateBars();
     content.querySelectorAll('[data-toggle]').forEach(h=>h.onclick=()=>{const i=+h.dataset.toggle;open=open===i?-1:i;draw();});
@@ -144,7 +144,7 @@ async function detalhe(){
     });
     const send=content.querySelector('#send');if(send)send.onclick=async()=>{
       if(!confirm(`Enviar ${o.client_name} para a Gestão? O onboarding será encerrado.`))return;
-      try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao'}});PF.toast('Cliente enviado para a Gestão!','ok');load();}catch(e){PF.toast(e.message,'err');}
+      try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao'}});PF.toast('Cliente enviado para a Gestão!','ok');location.href='gestao.html?id='+o.client_id;}catch(e){PF.toast(e.message,'err');}
     };
   }
   load();
