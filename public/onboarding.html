@@ -11,85 +11,145 @@
 <script src="js/app.js"></script>
 <style>
   .stepn{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none;background:var(--panel-3);border:2px solid var(--line-2)}
-  .stepn.done{background:var(--orange);border-color:var(--orange)}
+  .stepn.done{background:var(--green);border-color:var(--green);color:#04130d}
   .stepn.now{background:rgba(255,88,11,.25);border-color:var(--orange)}
-  .check{display:grid;grid-template-columns:40px 1.6fr 1fr 110px 140px 30px;gap:14px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .check{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
   .check+.check{margin-top:8px}
+  .check .head{display:grid;grid-template-columns:40px 1.6fr 1fr 110px 130px;gap:14px;align-items:center;cursor:pointer}
   .check b{font-size:13.5px}.check p{font-size:12px;color:var(--muted);margin-top:2px}
-  .check .who{font-size:12.5px}
-  .check .who small{display:block;color:var(--muted);font-size:11px}
-  .check .sub{grid-column:2/-1;display:none;border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+  .check .sub{border-top:1px solid var(--line);margin-top:12px;padding-top:8px;display:none}
   .check.open .sub{display:block}
-  .sub label{display:flex;gap:9px;align-items:center;font-size:12.5px;padding:4px 0}
+  .item{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 0;font-size:13px}
+  .item+.item{border-top:1px dashed var(--line)}
+  .item.ok .lbl{color:var(--dim);text-decoration:line-through}
+  .item small{color:var(--muted);font-size:11.5px}
+  .item .note-in{grid-column:2/-1;padding:6px 10px;font-size:12.5px}
   .countdown{display:flex;align-items:center;gap:12px;border:1px solid rgba(255,88,11,.5);background:rgba(255,88,11,.1);border-radius:12px;padding:12px 16px}
   .countdown .lucide{color:var(--orange);width:28px;height:28px}
-  .countdown b{font-size:18px;display:block}
-  .countdown small{color:var(--muted);font-size:12px}
-  @media (max-width:980px){.check{grid-template-columns:40px 1fr}.check>:nth-child(n+3):not(.sub){grid-column:2}}
+  .countdown b{font-size:18px;display:block}.countdown small{color:var(--muted);font-size:12px}
+  .gate{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  @media (max-width:980px){.check .head{grid-template-columns:40px 1fr}.check .head>:nth-child(n+3){grid-column:2}}
 </style>
 </head>
 <body>
 <script>
 const id=new URLSearchParams(location.search).get('id');
-const content=PF.shell(id?{title:'Clínica Vida+',crumbs:[['Onboarding','onboarding.html'],['Clínica Vida+']],search:false}:
-  {title:'Onboarding',subtitle:'Acompanhe a ativação dos novos clientes',crumbs:[['Operação'],['Onboarding']],search:'Buscar cliente...'});
-const ST={and:['Em andamento','solid-blue'],aguard:['Aguardando cliente','solid-amber'],pend:['Pendente','solid-red'],conc:['Concluído','solid-green']};
-const rows=[['Clínica Vida+','Saúde / Estética','Gestão','C1','Consultora','20/10',60,'and'],['Mercado Doce','Alimentos','Gestão','C2','Consultora','22/10',85,'aguard'],['Real Pedras','Revestimentos','Projetos','','Fernando','21/10',40,'and'],['DZAM Uniformes','Uniformes','Projetos','','Fernando','23/10',20,'pend'],['Elegance Cortinas','Decoração','Gestão','C3','Consultora','20/10',100,'conc'],['Estação Lanches','Alimentação','Gestão','C1','Consultora','24/10',30,'and'],['ELOWAY APP','Tecnologia','Projetos','','Fernando','25/10',10,'pend'],['Airsell','Indústria','Gestão','C2','Consultora','26/10',5,'pend']];
-let tab='all';
+const content=PF.shell(id?{title:'Onboarding',crumbs:[['Onboarding','onboarding.html'],['…']],search:false}:
+  {title:'Onboarding',subtitle:'Ativação dos novos clientes (prazo de 10 dias úteis).',crumbs:[['Operação'],['Onboarding']],search:'Buscar cliente...'});
+const esc=PF.esc;
+const diasUteis=(from,to)=>{let n=0;const d=new Date(from);d.setHours(0,0,0,0);const end=new Date(to);end.setHours(0,0,0,0);const sign=end>=d?1:-1;
+  while(d.toDateString()!==end.toDateString()){d.setDate(d.getDate()+sign);const w=d.getDay();if(w&&w!==6)n+=sign;}return n;};
+const bar=p=>`<div class="progress"><div class="bar"><span data-w="${p}" style="width:0;background:${p>=100?'var(--green)':p<25?'var(--pink)':'var(--orange)'}"></span></div><span class="small">${p}%</span></div>`;
 
-function list(){
-  const vis=rows.filter(r=>tab==='all'||r[2]===tab);
-  const bar=p=>`<div class="progress"><div class="bar"><span data-w="${p}" style="width:0;background:${p>=80?'var(--green)':p<25?'var(--pink)':'var(--orange)'}"></span></div><span class="small">${p}%</span></div>`;
-  content.innerHTML=`
-  <div class="note info mb"><i data-lucide="info"></i><div>Os clientes vão automaticamente para o onboarding depois da assinatura do contrato. Prazo de ativação: até 10 dias úteis.</div></div>
-  <section class="grid g4 mb">
-    ${PF.kpi({icon:'users',color:'orange',value:String(rows.length),label:'Em onboarding',arrow:true,click:'all',active:tab==='all'})}
-    ${PF.kpi({icon:'bar-chart-3',color:'blue',value:String(rows.filter(r=>r[2]==='Gestão').length),label:'Gestão',arrow:true,click:'Gestão',active:tab==='Gestão'})}
-    ${PF.kpi({icon:'folder',color:'purple',value:String(rows.filter(r=>r[2]==='Projetos').length),label:'Projetos',arrow:true,click:'Projetos',active:tab==='Projetos'})}
-    ${PF.kpi({icon:'clock',color:'green',value:'6 dias úteis',label:'Média de ativação'})}
-  </section>
-  <div class="card">
-    <div class="row between wrap"><div class="tabs" style="border:0;margin:0">${[['all','Todos'],['Gestão','Gestão'],['Projetos','Projetos']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-kpi="${k}">${l} (${k==='all'?rows.length:rows.filter(r=>r[2]===k).length})</button>`).join('')}</div>${PF.demo()}</div>
-    <div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Serviço</th><th>Squad</th><th>Responsável</th><th>Início</th><th>Prazo</th><th>Progresso</th><th>Status</th><th class="right">Ações</th></tr></thead><tbody>
-    ${vis.map(r=>`<tr><td><div class="who">${PF.chip(r[0])}<div><b>${r[0]}</b><small>${r[1]}</small></div></div></td><td>${PF.badge(r[2],r[2]==='Gestão'?'blue':'purple')}</td><td>${r[3]?PF.badge(r[3],'orange'):'–'}</td><td>${r[4]}</td><td>${r[5]}</td><td>10 dias</td><td>${bar(r[6])}</td><td>${PF.badge(...ST[r[7]])}</td><td class="right"><a class="btn btn-ghost btn-sm" href="onboarding.html?id=1">Ver</a></td></tr>`).join('')}
-    </tbody></table></div>
-  </div>`;
-  PF.icons();PF.animateBars();
-  content.querySelectorAll('[data-kpi]').forEach(b=>b.onclick=()=>{tab=b.dataset.kpi;list();});
+// ---------- LISTA ----------
+async function lista(){
+  let D={onboardings:[],waiting:[]},q='',tab='andamento';
+  try{D=await PF.api('/api/onboarding');}catch(e){PF.toast(e.message,'err');}
+  const draw=()=>{
+    const and=D.onboardings.filter(o=>o.status==='andamento'),conc=D.onboardings.filter(o=>o.status==='concluido');
+    const atrasados=and.filter(o=>o.due_at<Date.now());
+    const media=conc.length?Math.round(conc.reduce((a,o)=>a+diasUteis(o.started_at,o.finished_at),0)/conc.length):null;
+    const match=o=>!q||(o.client_name||o.name).toLowerCase().includes(q);
+    const list=(tab==='andamento'?and:tab==='concluido'?conc:[]).filter(match);
+    content.innerHTML=`
+    <section class="grid g4 mb">
+      ${PF.kpi({icon:'users',color:'orange',value:String(and.length),label:'Em onboarding',click:'andamento',active:tab==='andamento'})}
+      ${PF.kpi({icon:'hourglass',color:'yellow',value:String(D.waiting.length),label:'Aguardando início',click:'aguardando',active:tab==='aguardando'})}
+      ${PF.kpi({icon:'alarm-clock',color:'pink',value:String(atrasados.length),label:'Passaram do prazo'})}
+      ${PF.kpi({icon:'clock',color:'green',value:media===null?'—':media+' dias úteis',label:'Média de ativação',click:'concluido',active:tab==='concluido'})}
+    </section>
+    <div class="note info mb"><i data-lucide="info"></i><div>O <b>progresso</b> é a quantidade de itens do checklist já marcados, dividida pelo total. É a mesma conta em todas as telas.</div></div>
+    <div class="card">
+      <div class="tabs">${[['andamento','Em andamento',and.length],['aguardando','Aguardando início',D.waiting.length],['concluido','Enviados para Gestão',conc.length]].map(([k,l,n])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${n}</span></button>`).join('')}</div>
+      ${tab==='aguardando'?(D.waiting.filter(match).length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Serviços</th><th>Carteira</th><th>Cliente desde</th><th></th></tr></thead><tbody>
+        ${D.waiting.filter(match).map(c=>`<tr><td><a class="who" href="clientes.html?id=${c.id}">${PF.chip(c.name)}<div><b>${esc(c.name)}</b><small>${esc(c.segment||'—')}</small></div></a></td><td>${esc(c.services||'—')}</td><td>${c.squad||'—'}</td><td>${new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+          <td class="right"><button class="btn btn-primary btn-sm" data-start="${c.id}" data-name="${esc(c.name)}"><i data-lucide="play"></i>Iniciar onboarding</button></td></tr>`).join('')}</tbody></table></div>`
+        :`<div class="empty"><i data-lucide="check-circle"></i><div>Nenhum cliente esperando. Clientes novos aparecem aqui quando o contrato é assinado.</div></div>`)
+      :list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Serviços</th><th>Carteira</th><th>Consultora</th><th>Início</th><th>${tab==='concluido'?'Concluído':'Prazo'}</th><th>Progresso</th><th></th></tr></thead><tbody>
+        ${list.map(o=>{const late=o.status==='andamento'&&o.due_at<Date.now();return `<tr><td><div class="who">${PF.chip(o.client_name)}<div><b>${esc(o.client_name)}</b><small>${esc(o.segment||'—')}</small></div></div></td>
+          <td>${esc(o.services||'—')}</td><td>${o.squad||'—'}</td><td>${esc(o.consultora||'—')}</td><td>${new Date(o.started_at).toLocaleDateString('pt-BR')}</td>
+          <td>${o.status==='concluido'?new Date(o.finished_at).toLocaleDateString('pt-BR'):`<span style="color:${late?'var(--pink)':'inherit'}">${new Date(o.due_at).toLocaleDateString('pt-BR')}${late?' (atrasado)':''}</span>`}</td>
+          <td>${bar(o.progress.pct)}<small class="muted">${o.progress.done} de ${o.progress.total} itens</small></td>
+          <td class="right"><a class="btn btn-ghost btn-sm" href="onboarding.html?id=${o.id}">Abrir</a></td></tr>`;}).join('')}</tbody></table></div>`
+      :`<div class="empty"><i data-lucide="list-checks"></i><div>${tab==='andamento'?'Nenhum onboarding em andamento. Veja a aba "Aguardando início".':'Nenhum onboarding concluído ainda.'}</div></div>`}
+    </div>`;
+    PF.icons();PF.animateBars();
+    content.querySelectorAll('[data-t],[data-kpi]').forEach(b=>b.onclick=()=>{tab=b.dataset.t||b.dataset.kpi;draw();});
+    content.querySelectorAll('[data-start]').forEach(b=>b.onclick=async()=>{
+      if(!confirm(`Iniciar o onboarding de ${b.dataset.name}? O prazo é de 10 dias úteis a partir de hoje.`))return;
+      try{const r=await PF.api('/api/onboarding',{method:'POST',body:{client_id:b.dataset.start}});location.href='onboarding.html?id='+r.id;}catch(e){PF.toast(e.message,'err');}
+    });
+  };
+  document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();draw();};
+  draw();
 }
 
-function detail(){
-  const steps=[
-    ['Recepção e agendamento','Criar grupo, enviar boas-vindas e agendar a reunião inicial.','Lucas','Atendimento','Dia 1','conc',['Criar grupo no WhatsApp','Enviar boas-vindas','Agendar reunião inicial']],
-    ['Reunião de onboarding','Entendimento do negócio, objetivos, necessidades, coleta de materiais e acessos.','Consultora','Responsável','Até dia 3','and',['Realizar reunião','Registrar ata','Coletar logos e materiais','Cadastrar acessos no cofre']],
-    ['Estratégia e configurações','Copy, designer e tráfego trabalham em paralelo na proposta estratégica e nas configurações.','Copy, Designer e Tráfego','Equipe','Dias 3 a 7','pend',['Linha editorial (Copy)','Identidade do feed (Design)','Configurar BM e pixel (Tráfego)','Conectar Instagram e Facebook no sistema']],
-    ['Apresentação estratégica','Consolidação da estratégia em uma apresentação padronizada para o cliente.','Copy, Designer e Tráfego','Equipe','Dias 7 a 9','pend',['Montar apresentação','Revisão da consultora']],
-    ['Ativação','Apresentação ao cliente, registro dos alinhamentos e liberação para a rotina de Gestão.','Consultora','Responsável','Até dia 10','pend',['Apresentar ao cliente','Registrar alinhamentos','Liberar para Gestão']],
-  ];
-  content.innerHTML=`
-  <div class="card mb"><div class="row between wrap" style="gap:18px">
-    <div class="row" style="gap:14px">${PF.chip('Clínica Vida+','lg')}<div><div class="row"><h2 style="font-size:22px">Clínica Vida+</h2>${PF.badge('Em andamento','green')}</div><div class="muted small" style="margin-top:4px">Saúde / Estética · Squad C1 · Início: 20/10 · Prazo: 10 dias úteis</div></div></div>
-    <div style="min-width:240px;flex:1;max-width:380px"><div class="small muted" style="margin-bottom:6px">Progresso geral</div><div class="progress"><div class="bar"><span id="pg" style="width:0"></span></div><b id="pgv">0%</b></div></div>
-    <div class="countdown"><i data-lucide="calendar-clock"></i><div><small>Faltam</small><b>4 dias úteis</b></div></div>
-  </div></div>
-  <div class="tabs" data-tabs><button data-tab="c" class="on">Checklist</button><button data-tab="a">Arquivos</button><button data-tab="m">Comunicações</button><button data-tab="h">Histórico</button></div>
-  <section data-pane="c">${steps.map(([t,d,who,role,prazo,st,subs],i)=>`
-    <div class="check ${st==='and'?'open':''}">
-      <span class="stepn ${st==='conc'?'done':st==='and'?'now':''}">${i+1}</span>
-      <div><b>${t}</b><p>${d}</p></div>
-      <div class="row who">${who.includes(',')?'<span class="avatars">'+['Copy','Designer','Tráfego'].map(n=>PF.avatar(n)).join('')+'</span>':PF.avatar(who)}<div>${who}<small>${role}</small></div></div>
-      <div class="small">${prazo}</div>
-      <div>${PF.badge(...ST[st])}</div>
-      <button class="icon-btn" data-toggle aria-label="Detalhes"><i data-lucide="chevron-down"></i></button>
-      <div class="sub">${subs.map((s,k)=>`<label><input type="checkbox" class="chk" ${st==='conc'||(st==='and'&&k<2)?'checked':''}>${s}</label>`).join('')}</div>
-    </div>`).join('')}</section>
-  ${['a','m','h'].map(k=>`<section data-pane="${k}" hidden class="card empty"><i data-lucide="construction"></i><div>Esta aba entra na próxima etapa.</div></section>`).join('')}`;
-  PF.icons();PF.tabs(content);
-  const upd=()=>{const all=content.querySelectorAll('.sub .chk'),done=[...all].filter(c=>c.checked).length,p=Math.round(done/all.length*100);content.querySelector('#pg').style.width=p+'%';content.querySelector('#pgv').textContent=p+'%';};
-  content.querySelectorAll('.sub .chk').forEach(c=>c.onchange=upd);setTimeout(upd,100);
-  content.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>b.closest('.check').classList.toggle('open'));
+// ---------- DETALHE (checklist) ----------
+async function detalhe(){
+  let D,open=null;
+  async function load(){
+    try{D=await PF.api('/api/onboarding?id='+encodeURIComponent(id));}
+    catch(e){content.innerHTML=`<div class="card empty"><i data-lucide="search-x"></i><div>${esc(e.message)}</div><a class="btn btn-ghost" href="onboarding.html" style="margin-top:12px">Voltar</a></div>`;PF.icons();return;}
+    draw();
+  }
+  function draw(){
+    const o=D.onboarding,fechado=o.status==='concluido';
+    document.title='Periférica · Onboarding · '+o.client_name;
+    document.querySelector('.crumbs').innerHTML=`<a href="onboarding.html">Onboarding</a><i data-lucide="chevron-right"></i><span>${esc(o.client_name)}</span>`;
+    document.querySelector('.page-title h1').innerHTML=`<a href="onboarding.html" class="icon-btn" title="Voltar" style="display:inline-grid;vertical-align:-4px;margin-right:4px"><i data-lucide="arrow-left"></i></a>${esc(o.client_name)}`;
+    const faltam=diasUteis(Date.now(),o.due_at);
+    if(open===null){const cur=D.steps.findIndex(s=>!s.done);open=cur<0?D.steps.length-1:cur;}
+    content.innerHTML=`
+    <div class="card mb"><div class="row between wrap" style="gap:18px">
+      <div class="row" style="gap:14px">${PF.chip(o.client_name,'lg')}<div><div class="row"><h2 style="font-size:22px">${esc(o.client_name)}</h2>${PF.badge(fechado?'Enviado para Gestão':'Em andamento',fechado?'green':'blue')}</div>
+        <div class="muted small" style="margin-top:4px">${esc(o.segment||'—')}${o.squad?' · Carteira '+o.squad:''} · Início ${new Date(o.started_at).toLocaleDateString('pt-BR')} por ${esc(o.started_by||'—')} · Prazo ${new Date(o.due_at).toLocaleDateString('pt-BR')}</div>
+        <a class="link tiny" href="clientes.html?id=${o.client_id}">Abrir ficha do cliente</a></div></div>
+      <div style="min-width:240px;flex:1;max-width:380px"><div class="small muted" style="margin-bottom:6px">Progresso geral · ${o.progress.done} de ${o.progress.total} itens</div>${bar(o.progress.pct)}</div>
+      ${fechado?`<div class="countdown" style="border-color:rgba(31,213,154,.5);background:rgba(31,213,154,.1)"><i data-lucide="check-circle" style="color:var(--green)"></i><div><small>Concluído em</small><b>${new Date(o.finished_at).toLocaleDateString('pt-BR')}</b></div></div>`
+        :`<div class="countdown"><i data-lucide="calendar-clock"></i><div><small>${faltam>=0?'Faltam':'Atrasado há'}</small><b>${Math.abs(faltam)} dia${Math.abs(faltam)===1?'':'s'} út${Math.abs(faltam)===1?'il':'eis'}</b></div></div>`}
+    </div></div>
+    ${D.steps.map((s,i)=>{const done=s.items.filter(x=>x.done).length;const st=s.done?'Concluído':s.started?'Em andamento':'Pendente';
+      return `<div class="check ${open===i?'open':''}" data-step="${i}">
+      <div class="head" data-toggle="${i}"><span class="stepn ${s.done?'done':s.started?'now':''}">${s.done?'<i data-lucide="check" style="width:16px"></i>':i+1}</span>
+        <div><b>${esc(s.title)}</b><p>${esc(s.desc)}</p></div>
+        <div class="row small">${s.responsible?PF.avatar(s.responsible)+esc(s.responsible):`<span class="muted">${esc(s.roleLabel||'')} (definir na ficha)</span>`}</div>
+        <div class="small">${esc(s.prazo)}</div>
+        <div class="row" style="justify-content:space-between">${PF.badge(st,s.done?'solid-green':s.started?'solid-blue':'gray')}<span class="muted tiny">${done}/${s.items.length}</span></div></div>
+      <div class="sub">${s.items.map(it=>`<div class="item ${it.done?'ok':''}">
+          <input type="checkbox" class="chk" data-item="${it.id}" ${it.done?'checked':''} ${fechado?'disabled':''}>
+          <div><div class="lbl">${esc(it.label)}</div>${it.done?`<small>Feito por ${esc(it.done_by)} em ${new Date(it.done_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small>`:''}</div>
+          <button class="icon-btn" data-note="${it.id}" title="Anotação"><i data-lucide="${it.notes?'message-square-text':'message-square-plus'}"></i></button>
+          ${it.notes?`<div class="note-in muted">${esc(it.notes)}</div>`:''}
+        </div>`).join('')}</div>
+    </div>`;}).join('')}
+    <div class="card" style="margin-top:14px"><div class="gate">
+      <i data-lucide="${fechado?'check-circle':D.readyForGestao?'unlock':'lock'}" style="width:26px;height:26px;color:${fechado||D.readyForGestao?'var(--green)':'var(--muted)'}"></i>
+      <div style="flex:1;min-width:240px"><b>${fechado?'Cliente já está na Gestão.':'Enviar para Gestão'}</b>
+        <div class="muted small">${fechado?'O onboarding foi concluído.':D.readyForGestao?'Apresentação e alinhamentos concluídos. Pode liberar o cliente para a rotina de Gestão.':'Libera quando as etapas '+D.requiredSteps.map(x=>'"'+esc(x)+'"').join(' e ')+' estiverem 100% marcadas.'}</div></div>
+      ${fechado?`<a class="btn btn-ghost" href="gestao.html">Ir para Gestão</a>`:`<button class="btn btn-primary" id="send" ${D.readyForGestao?'':'disabled'}><i data-lucide="send"></i>Enviar para Gestão</button>`}
+    </div></div>`;
+    PF.icons();PF.animateBars();
+    content.querySelectorAll('[data-toggle]').forEach(h=>h.onclick=()=>{const i=+h.dataset.toggle;open=open===i?-1:i;draw();});
+    content.querySelectorAll('[data-item]').forEach(c=>c.onchange=async()=>{
+      c.disabled=true;
+      try{await PF.api('/api/onboarding',{method:'PATCH',body:{item_id:c.dataset.item,done:c.checked}});await load();}
+      catch(e){PF.toast(e.message,'err');c.checked=!c.checked;c.disabled=false;}
+    });
+    content.querySelectorAll('[data-note]').forEach(b=>b.onclick=()=>{
+      const it=D.steps.flatMap(s=>s.items).find(x=>x.id===b.dataset.note);
+      const m=PF.modal(`<div class="modal-head"><h3>Anotação</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+        <form class="stack" id="f"><p class="small muted">${esc(it.label)}</p><textarea class="input" name="notes" placeholder="Ex.: cliente vai mandar as fotos na quinta">${esc(it.notes||'')}</textarea>
+        <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`);
+      m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();try{await PF.api('/api/onboarding',{method:'PATCH',body:{item_id:it.id,notes:e.target.elements.notes.value}});m.close();PF.toast('Anotação salva.','ok');load();}catch(x){PF.toast(x.message,'err');}};
+    });
+    const send=content.querySelector('#send');if(send)send.onclick=async()=>{
+      if(!confirm(`Enviar ${o.client_name} para a Gestão? O onboarding será encerrado.`))return;
+      try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao'}});PF.toast('Cliente enviado para a Gestão!','ok');load();}catch(e){PF.toast(e.message,'err');}
+    };
+  }
+  load();
 }
-id?detail():list();
+id?detalhe():lista();
 </script>
 </body>
 </html>

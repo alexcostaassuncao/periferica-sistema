@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/app.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/cliente-ficha.js"></script>
 <style>
   .squads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .squads .col{min-height:280px}
@@ -45,7 +46,7 @@ const content=PF.shell(id?{title:'Cliente',crumbs:[['Clientes','clientes.html'],
 
 async function load(){
   try{clients=(await PF.api('/api/clients')).clients;}catch(e){PF.toast(e.message,'err');}
-  id?renderDetail():renderList();
+  renderList();
 }
 
 function services(c){return (c.services||'').split(',').map(s=>s.trim()).filter(Boolean);}
@@ -62,12 +63,13 @@ function renderList(){
         <div class="toggle"><button class="${view==='list'?'on':''}" data-v="list"><i data-lucide="list" style="width:15px"></i> Lista</button><button class="${view==='squad'?'on':''}" data-v="squad"><i data-lucide="columns-3" style="width:15px"></i> Por squad</button></div></div>
     </div>
     ${!clients.length?`<div class="empty"><i data-lucide="building-2"></i><div>Nenhum cliente cadastrado ainda.</div></div>`:
-    view==='list'?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Squad</th><th>Serviços contratados</th><th>Redes</th><th>Situação</th><th>Data de entrada</th><th></th></tr></thead><tbody>
+    view==='list'?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Squad</th><th>Serviços contratados</th><th>Redes</th><th>Situação</th><th>Fase</th><th>Data de entrada</th><th></th></tr></thead><tbody>
       ${list.map(c=>`<tr><td><a class="who" href="clientes.html?id=${c.id}">${PF.chip(c.name)}<div><b>${PF.esc(c.name)}</b><small>${PF.esc(c.segment||'—')}</small></div></a></td>
         <td>${c.squad?PF.badge(c.squad,'orange'):'<span class="muted">—</span>'}</td>
         <td><div class="row wrap" style="gap:5px">${services(c).map(s=>PF.badge(s,'blue')).join('')||'<span class="muted small">—</span>'}</div></td>
         <td>${netIcons(c)}</td>
         <td>${PF.badge(...(STATUS[c.status]||[c.status,'gray']))}</td>
+        <td>${PF.badge(...({'':['Aguardando onboarding','yellow'],onboarding:['Em onboarding','blue'],gestao:['Em Gestão','green']}[c.phase||'']))}</td>
         <td>${new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
         <td class="right"><a class="icon-btn" href="clientes.html?id=${c.id}" aria-label="Abrir"><i data-lucide="chevron-right"></i></a></td></tr>`).join('')}
     </tbody></table></div>`:
@@ -83,56 +85,6 @@ function renderList(){
     try{await PF.api('/api/clients',{method:'PATCH',body:{id:cid,squad}});clients.find(c=>c.id===cid).squad=squad;PF.toast('Cliente movido para o '+squad+'.','ok');}
     catch(e){PF.toast(e.message,'err');load();}
   });
-}
-
-function renderDetail(){
-  const c=clients.find(x=>x.id===id);
-  if(!c){content.innerHTML='<div class="card empty"><i data-lucide="search-x"></i><div>Cliente não encontrado.</div></div>';PF.icons();return;}
-  document.title='Periférica · '+c.name;
-  document.querySelector('.crumbs').innerHTML=`<a href="clientes.html">Clientes</a><i data-lucide="chevron-right"></i><span>${PF.esc(c.name)}</span>`;
-  document.querySelector('.page-title h1').textContent=c.name;
-  const fb=c.social.find(s=>s.network==='facebook'),ig=c.social.find(s=>s.network==='instagram');
-  const access=[['instagram','c-pink','Instagram',ig?'Perfil @'+ig.username:'Perfil','Social media','Gestão de conteúdo',ig?'Liberado':'Pendente'],
-    ['facebook','c-blue','Meta Business','Conta da empresa','Tráfego','Administrador',fb?'Liberado':'Pendente'],
-    ['megaphone','c-yellow','Google Ads','Conta de anúncios','Tráfego','Administrador','Pendente'],
-    ['globe','c-green','Website','Hospedagem / Admin','Projetos','Administrador','Liberado'],
-    ['mail','c-gray','E-mail','Caixa compartilhada','Comunicação','Caixa compartilhada','Liberado']];
-  content.innerHTML=`
-  <div class="card mb hero">
-    ${PF.chip(c.name,'lg')}
-    <div style="flex:1;min-width:240px">
-      <h2>${PF.esc(c.name)} ${PF.badge(c.status==='ativo'?'Cliente ativo':STATUS[c.status]?.[0]||c.status,STATUS[c.status]?.[1]||'gray')}</h2>
-      <div class="muted small">${PF.esc(c.segment||'Segmento não informado')}${c.squad?' · Squad '+c.squad:''}</div>
-      <div class="facts"><div><i data-lucide="calendar"></i><div>${new Date(c.created_at).toLocaleDateString('pt-BR')}<small>Cliente desde</small></div></div>
-        ${c.contact_name?`<div><i data-lucide="user"></i><div>${PF.esc(c.contact_name)}<small>Responsável</small></div></div>`:''}
-        ${c.phone?`<div><i data-lucide="phone"></i><div><a href="https://wa.me/55${c.phone.replace(/\D/g,'')}" target="_blank" rel="noopener">${PF.esc(c.phone)}</a><small>Telefone</small></div></div>`:''}
-        ${c.email?`<div><i data-lucide="mail"></i><div><a href="mailto:${PF.esc(c.email)}">${PF.esc(c.email)}</a><small>E-mail</small></div></div>`:''}
-        <div><i data-lucide="instagram"></i><div>${ig?'@'+PF.esc(ig.username):'Não conectado'}<small>Instagram</small></div></div>
-        <div><i data-lucide="facebook"></i><div>${fb?PF.esc(fb.name):'Não conectada'}<small>Página do Facebook</small></div></div></div>
-    </div>
-    <button class="btn btn-ghost" id="edit"><i data-lucide="pencil"></i>Editar</button>
-  </div>
-  <div class="detail">
-    <div>
-      <div class="tabs" data-tabs><button data-tab="geral" class="on">Visão geral</button><button data-tab="acessos">Acessos</button><button data-tab="redes">Redes sociais</button><button data-tab="equipe">Equipe</button><button data-tab="servicos">Serviços contratados</button><button data-tab="docs">Documentos</button><button data-tab="hist">Histórico</button></div>
-      <section data-pane="geral" class="card"><div class="card-head"><h3>Informações da empresa</h3></div>
-        <div class="info"><span>Nome fantasia</span><b>${PF.esc(c.name)}</b><span>Segmento</span><b>${PF.esc(c.segment||'—')}</b><span>Squad</span><b>${c.squad||'—'}</b><span>Serviços</span><b>${PF.esc(c.services||'—')}</b><span>Situação</span><b>${STATUS[c.status]?.[0]||c.status}</b></div></section>
-      <section data-pane="acessos" hidden class="card"><div class="card-head"><div><h3>Acessos às plataformas</h3><p>Registre e gerencie os acessos do cliente. As credenciais ficam protegidas em um cofre empresarial.</p></div><button class="btn btn-ghost btn-sm"><i data-lucide="plus"></i>Adicionar acesso</button></div>
-        <div class="table-wrap"><table class="tbl"><thead><tr><th>Plataforma</th><th>Tipo de acesso</th><th>Permissão</th><th>Status</th><th class="right">Ações</th></tr></thead><tbody>
-        ${access.map(([i,col,n,s,t,p,st])=>`<tr><td><div class="who"><span class="plat ${col}"><i data-lucide="${i}"></i></span><div><b>${n}</b><small>${PF.esc(s)}</small></div></div></td><td>${t}</td><td>${p}</td><td>${PF.badge(st,st==='Liberado'?'solid-green':'solid-amber')}</td><td class="right"><button class="btn btn-ghost btn-sm"><i data-lucide="${st==='Liberado'?'external-link':'key-round'}"></i>${st==='Liberado'?'Abrir no cofre':'Solicitar acesso'}</button></td></tr>`).join('')}
-        </tbody></table></div><p class="tiny muted" style="margin-top:8px">${PF.demo()}</p></section>
-      <section data-pane="redes" hidden class="card"><div class="card-head"><div><h3>Redes sociais conectadas</h3><p>Usadas para publicar direto pelo sistema.</p></div><a class="btn btn-primary btn-sm" href="/api/social/meta/start?client=${c.id}"><i data-lucide="plug"></i>${fb?'Reconectar':'Conectar'} Facebook + Instagram</a></div>
-        ${[['facebook',fb],['instagram',ig]].map(([n,a])=>`<div class="li">${PF.net(n)}<div class="t"><b>${a?PF.esc(n==='instagram'?'@'+a.username:a.name):'<span class="muted">Não conectado</span>'}</b></div>${a?PF.badge('Conectado','green'):''}</div>`).join('')}
-        <a class="link" href="publicacoes.html" style="margin-top:12px">Ver publicações deste cliente <i data-lucide="arrow-right"></i></a></section>
-      ${['equipe','servicos','docs','hist'].map(k=>`<section data-pane="${k}" hidden class="card empty"><i data-lucide="construction"></i><div>Esta aba entra na próxima etapa.</div></section>`).join('')}
-    </div>
-    <aside class="card vault"><div class="ico c-solid-orange"><i data-lucide="lock"></i></div><h3 style="margin-top:12px">Cofre de senhas empresarial</h3>
-      <p class="muted small" style="margin-top:6px;line-height:1.5">As credenciais ficam numa ferramenta segura, integrada ao sistema. Só usuários autorizados têm acesso aos dados sensíveis.</p>
-      <ul>${['Senhas protegidas e criptografadas','Controle de permissões por usuário','Registro de quem acessou','Integração com a ficha do cliente','Revogação de acessos quando necessário'].map(t=>`<li><input type="checkbox" class="chk" checked disabled>${t}</li>`).join('')}</ul>
-      <button class="btn btn-outline" style="width:100%">Acessar cofre <i data-lucide="external-link"></i></button></aside>
-  </div>`;
-  PF.icons();PF.tabs(content);
-  content.querySelector('#edit').onclick=()=>editClient(c);
 }
 
 function editClient(c){
@@ -159,7 +111,7 @@ if(!id){
   document.getElementById('addC').onclick=()=>editClient(null);
   document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();renderList();};
 }
-load();
+if(id)PF.clienteFicha(content,id);else load();
 </script>
 </body>
 </html>

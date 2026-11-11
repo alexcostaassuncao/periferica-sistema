@@ -6,6 +6,7 @@ export const AREAS=[
   ['onboarding','Onboarding'],['gestao','Gestão'],['revisao','Revisão'],['copy','Copy'],['design','Design'],
   ['publicacoes','Publicações'],['trafego','Tráfego'],['projetos','Projetos'],
   ['financeiro','Financeiro · Direção'],['equipe','Equipe (usuários)'],['agenda','Agenda'],['configuracoes','Configurações'],
+  ['cofre','Cofre de senhas (ver acessos dos clientes)'],
 ] as const;
 export type Area=typeof AREAS[number][0];
 export const AREA_KEYS=AREAS.map(a=>a[0]) as string[];
