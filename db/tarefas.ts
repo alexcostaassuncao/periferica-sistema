@@ -6,7 +6,7 @@ import {database} from './raw';
 
 export const STAGES=['gestao','copy','design','revisao','cliente','aprovada'] as const;
 export const STAGE_LABEL:Record<string,string>={gestao:'Gestão',copy:'Copy',design:'Design',revisao:'Revisão',cliente:'Com o cliente',aprovada:'Aprovada'};
-export const CATEGORIES=['social','campanha'],FORMATS=['feed','stories','reels'],CHANNELS=['instagram','facebook','ambos'];
+export const CATEGORIES=['social','campanha','video_organico','video_campanha'],FORMATS=['feed','stories','reels'],CHANNELS=['instagram','facebook','ambos'];
 // Papel da equipe do cliente que recebe a tarefa em cada etapa (para sugerir o responsável).
 export const STAGE_ROLE:Record<string,string>={copy:'copy',design:'design',revisao:'consultora',gestao:'consultora'};
 

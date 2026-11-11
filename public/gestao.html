@@ -141,19 +141,50 @@ async function cliente(){
   function tarefas(p){
     const list=T.filter(t=>(!tf.stage||t.stage===tf.stage)&&(!tf.category||t.category===tf.category));
     const {CAT,FMT,STAGES}=PF.taskMeta;
-    p.innerHTML=`<div class="card"><div class="card-head"><div><h3>Tarefas do cliente</h3><p>A Gestão acompanha a tarefa em todas as etapas.</p></div><button class="btn btn-primary" id="nt"><i data-lucide="plus"></i>Nova tarefa</button></div>
-      <div class="filters">${PF.select('fs','Etapa',[['','Etapa: todas'],...STAGES])}${PF.select('fc','Categoria',[['','Categoria: todas'],...Object.entries(CAT)])}<a class="link" href="#" id="clr">Limpar</a><span class="muted small" style="margin-left:auto">${list.length} de ${T.length}</span></div>
+    const nCat=k=>T.filter(t=>(!tf.stage||t.stage===tf.stage)&&(!k||t.category===k)).length;
+    p.innerHTML=`<div class="card"><div class="card-head"><div><h3>Tarefas do cliente</h3><p>A Gestão acompanha a tarefa em todas as etapas.</p></div>
+        <div class="row" style="gap:8px"><button class="btn btn-ghost" id="gm"><i data-lucide="wand-sparkles"></i>Gerar tarefas do mês</button><button class="btn btn-primary" id="nt"><i data-lucide="plus"></i>Nova tarefa</button></div></div>
+      <div class="tabs" style="margin-top:4px">${[['','Todas'],...Object.entries(CAT)].map(([k,l])=>`<button data-cat="${k}" class="${tf.category===k?'on':''}">${l}<span class="count">${nCat(k)}</span></button>`).join('')}</div>
+      <div class="filters">${PF.select('fs','Etapa',[['','Etapa: todas'],...STAGES])}<a class="link" href="#" id="clr">Limpar</a><span class="muted small" style="margin-left:auto">${list.length} de ${T.length}</span></div>
       ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Etapa</th><th>Com</th><th>Categoria</th><th>Formato</th><th>Prazo</th><th></th></tr></thead><tbody>
       ${list.map(t=>`<tr><td><div class="who">${t.last_url?(t.last_kind==='video'?'<span class="tthumb" style="display:grid;place-items:center"><i data-lucide="film"></i></span>':`<img class="tthumb" src="${esc(t.last_url)}" alt="">`):'<span class="tthumb" style="display:grid;place-items:center"><i data-lucide="file"></i></span>'}<div><b>${esc(t.title)}</b><small>${t.versions} versão(ões) · ${t.comments} comentário(s)</small></div></div></td>
         <td>${PF.taskStage(t.stage)}${t.client_status==='ajustes'?'<div class="tiny" style="color:var(--pink)">cliente pediu ajustes</div>':''}</td><td class="small">${esc(t.assignee_name||'—')}</td><td>${CAT[t.category]}</td><td>${FMT[t.format]}</td>
         <td class="small" style="color:${t.due_date&&t.due_date<new Date().toISOString().slice(0,10)&&t.stage!=='aprovada'?'var(--pink)':'inherit'}">${fdt(t.due_date)}</td>
         <td class="right"><button class="btn btn-ghost btn-sm" data-open="${t.id}">Ver tarefa</button></td></tr>`).join('')}</tbody></table></div>`
       :'<div class="empty"><i data-lucide="list-todo"></i><div>Nenhuma tarefa com esses filtros.</div></div>'}</div>`;
-    const fs=p.querySelector('#fs'),fc=p.querySelector('#fc');fs.value=tf.stage;fc.value=tf.category;
-    fs.onchange=()=>{tf.stage=fs.value;tarefas(p);PF.icons();};fc.onchange=()=>{tf.category=fc.value;tarefas(p);PF.icons();};
+    const fs=p.querySelector('#fs');fs.value=tf.stage;
+    fs.onchange=()=>{tf.stage=fs.value;tarefas(p);PF.icons();};
+    p.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{tf.category=b.dataset.cat;tarefas(p);PF.icons();});
     p.querySelector('#clr').onclick=e=>{e.preventDefault();tf={stage:'',category:''};tarefas(p);PF.icons();};
     p.querySelector('#nt').onclick=()=>PF.Tarefa.nova({client_id:id,meetings:M,onDone:load});
+    p.querySelector('#gm').onclick=()=>gerarMes();
     p.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>PF.Tarefa.open(b.dataset.open,{onChange:load}));
+  }
+  // Gera de uma vez as tarefas que o plano pede no mês (só as que faltam); depois o gestor edita uma por uma.
+  function gerarMes(){
+    let month=sessionStorage.getItem('pf-ent-mes')||new Date().toISOString().slice(0,7);
+    const m=PF.modal(`<div class="modal-head"><div><h3>Gerar tarefas do mês</h3><p class="muted small">Cria as tarefas que o plano inclui, já com categoria, formato e prazo sugerido. Depois é só editar cada uma.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+      <label class="field" style="max-width:220px"><span>Mês</span><input class="input" type="month" id="gmM" value="${month}"></label>
+      <div id="gmP" style="margin-top:14px"></div>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="gmGo" disabled><i data-lucide="wand-sparkles"></i>Gerar tarefas</button></div>`,{side:true});
+    const box=m.el.querySelector('#gmP'),go=m.el.querySelector('#gmGo');let falta=0;
+    async function prev(){
+      box.innerHTML='<p class="muted small">Calculando…</p>';go.disabled=true;
+      try{
+        const P=await PF.api(`/api/tasks/plano?client=${encodeURIComponent(id)}&month=${month}`);
+        falta=P.rows.reduce((s,r)=>s+r.create,0);
+        box.innerHTML=P.rows.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Categoria</th><th>Conta</th><th class="right">Plano</th><th class="right">Já existem</th><th class="right">Serão criadas</th></tr></thead><tbody>
+          ${P.rows.map(r=>`<tr><td><b>${r.label}</b></td><td class="small muted">${r.conta}</td><td class="right">${r.total}</td><td class="right">${r.existing}</td><td class="right"><b>${r.create}</b></td></tr>`).join('')}</tbody></table></div>
+          <p class="muted tiny" style="margin-top:8px">${P.weeks} semanas de produção. ${falta?`Serão criadas <b>${falta}</b> tarefas na etapa Gestão, com prazo na sexta-feira de cada semana.`:'As tarefas deste mês já foram todas geradas.'}</p>`
+          :`<div class="empty" style="padding:18px"><i data-lucide="package-open"></i><div>O plano deste cliente ainda não tem entregas definidas.</div><a class="btn btn-ghost btn-sm" href="clientes.html?id=${id}" onclick="sessionStorage.setItem('pf-ficha-tab','servicos')" style="margin-top:10px">Definir entregas</a></div>`;
+        go.disabled=!falta;PF.icons();
+      }catch(e){box.innerHTML=`<p class="muted small">${esc(e.message)}</p>`;}
+    }
+    m.el.querySelector('#gmM').onchange=e=>{if(/^\d{4}-\d{2}$/.test(e.target.value)){month=e.target.value;prev();}};
+    go.onclick=async()=>{go.disabled=true;
+      try{const r=await PF.api('/api/tasks/plano',{method:'POST',body:{client_id:id,month}});m.close();PF.toast(r.created?`${r.created} tarefas criadas. Agora é só editar cada uma.`:r.message,'ok');tab='tarefas';load();}
+      catch(e){PF.toast(e.message,'err');go.disabled=false;}};
+    PF.icons();prev();
   }
   function historico(p){
     const K={contato:['phone','blue'],reuniao:['users','purple'],nota:['sticky-note','yellow'],sistema:['bot','gray']};

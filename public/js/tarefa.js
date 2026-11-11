@@ -6,7 +6,7 @@
   const esc=PF.esc;
   const STAGES=[['gestao','Gestão'],['copy','Copy'],['design','Design'],['revisao','Revisão'],['cliente','Cliente'],['aprovada','Aprovada']];
   const SCOLOR={gestao:'gray',copy:'purple',design:'blue',revisao:'yellow',cliente:'orange',aprovada:'green'};
-  const CAT={social:'Social media',campanha:'Campanha'},FMT={feed:'Feed',stories:'Stories',reels:'Reels'},CH={instagram:'Instagram',facebook:'Facebook',ambos:'Instagram + Facebook'};
+  const CAT={social:'Social Media',campanha:'Campanha',video_organico:'Vídeo orgânico',video_campanha:'Vídeo de campanha'},FMT={feed:'Feed',stories:'Stories',reels:'Reels'},CH={instagram:'Instagram',facebook:'Facebook',ambos:'Instagram + Facebook'};
   const ACT={criada:'Criou a tarefa',enviada:'Enviou',ajuste:'Pediu ajuste',versao:'Anexou entrega',liberada:'Liberou para o cliente',aprovada:'Aprovada',cliente_ajustes:'Cliente pediu ajustes'};
   PF.taskStage=(s)=>PF.badge((STAGES.find(x=>x[0]===s)||[s,s])[1],SCOLOR[s]||'gray');
   PF.taskMeta={CAT,FMT,CH,STAGES};
