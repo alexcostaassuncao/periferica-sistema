@@ -125,8 +125,9 @@ async function detalhe(){
     <div class="card" style="margin-top:14px"><div class="gate">
       <i data-lucide="${fechado?'check-circle':D.readyForGestao?'unlock':'lock'}" style="width:26px;height:26px;color:${fechado||D.readyForGestao?'var(--green)':'var(--muted)'}"></i>
       <div style="flex:1;min-width:240px"><b>${fechado?'Cliente já está na Gestão.':'Enviar para Gestão'}</b>
-        <div class="muted small">${fechado?'O onboarding foi concluído.':D.readyForGestao?'Apresentação e alinhamentos concluídos. Pode liberar o cliente para a rotina de Gestão.':'Libera quando as etapas '+D.requiredSteps.map(x=>'"'+esc(x)+'"').join(' e ')+' estiverem 100% marcadas.'}</div></div>
-      ${fechado?`<a class="btn btn-primary" href="gestao.html?id=${o.client_id}">Abrir na Gestão</a>`:`<button class="btn btn-primary" id="send" ${D.readyForGestao?'':'disabled'}><i data-lucide="send"></i>Enviar para Gestão</button>`}
+        <div class="muted small">${fechado?'O onboarding foi concluído.':D.readyForGestao?'Apresentação e alinhamentos concluídos. Pode liberar o cliente para a rotina de Gestão.':'Libera quando as etapas '+D.requiredSteps.map(x=>'"'+esc(x)+'"').join(' e ')+' estiverem 100% marcadas.'}${fechado?'':'<br>O cliente só vai para a Gestão <b>com carteira definida</b> — assim ninguém perde ele de vista.'}</div></div>
+      ${fechado?`<a class="btn btn-primary" href="gestao.html?id=${o.client_id}">Abrir na Gestão</a>`:`<label class="field" style="min-width:170px"><span>Carteira do cliente *</span><select class="select-in" id="squad"><option value="">Escolha…</option>${['C1','C2','C3'].map(x=>`<option ${x===o.squad?'selected':''}>${x}</option>`).join('')}</select></label>
+        <button class="btn btn-primary" id="send" ${D.readyForGestao?'':'disabled'}><i data-lucide="send"></i>Enviar para Gestão</button>`}
     </div></div>`;
     PF.icons();PF.animateBars();
     content.querySelectorAll('[data-toggle]').forEach(h=>h.onclick=()=>{const i=+h.dataset.toggle;open=open===i?-1:i;draw();});
@@ -143,8 +144,10 @@ async function detalhe(){
       m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();try{await PF.api('/api/onboarding',{method:'PATCH',body:{item_id:it.id,notes:e.target.elements.notes.value}});m.close();PF.toast('Anotação salva.','ok');load();}catch(x){PF.toast(x.message,'err');}};
     });
     const send=content.querySelector('#send');if(send)send.onclick=async()=>{
-      if(!confirm(`Enviar ${o.client_name} para a Gestão? O onboarding será encerrado.`))return;
-      try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao'}});PF.toast('Cliente enviado para a Gestão!','ok');location.href='gestao.html?id='+o.client_id;}catch(e){PF.toast(e.message,'err');}
+      const squad=content.querySelector('#squad').value;
+      if(!squad){PF.toast('Escolha a carteira do cliente antes de enviar para a Gestão.','err');content.querySelector('#squad').focus();return;}
+      if(!confirm(`Enviar ${o.client_name} para a Gestão, na carteira ${squad}? O onboarding será encerrado.`))return;
+      try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao',squad}});PF.toast('Cliente enviado para a Gestão!','ok');location.href='gestao.html?id='+o.client_id;}catch(e){PF.toast(e.message,'err');}
     };
   }
   load();

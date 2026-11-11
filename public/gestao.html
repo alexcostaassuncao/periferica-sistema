@@ -58,7 +58,7 @@ async function lista(){
         <td>${c.squad?PF.badge(c.squad,'orange'):`<a href="clientes.html?id=${c.id}" title="Definir carteira na ficha do cliente">${PF.badge('Sem carteira','yellow')}</a>`}</td><td>${c.consultora?esc(c.consultora):`<a class="link tiny" href="clientes.html?id=${c.id}">definir</a>`}</td><td>${esc(c.plano||c.services||'—')}${c.plano_valor?`<div class="muted tiny">${esc(c.plano_valor)}</div>`:''}</td>
         <td>${c.abertas}</td><td>${c.atrasadas?PF.badge(String(c.atrasadas),'solid-red'):'0'}</td><td class="small">${dt?fdt(dt.split(' ')[0])+' '+dt.split(' ')[1]+'<div class="muted tiny">'+esc(tt)+'</div>':'—'}</td>
         <td class="right"><a class="btn btn-ghost btn-sm" href="gestao.html?id=${c.id}">Abrir</a></td></tr>`;}).join('')}</tbody></table></div>`
-      :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros. Clientes entram na Gestão quando o onboarding é concluído.</div></div>`}
+      :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros. Clientes entram na Gestão quando o onboarding é concluído.<br><span class="tiny">Se um cliente não aparece para você, ele pode estar em outra carteira: verifique com o administrador.</span></div></div>`}
     </div>`;
     PF.icons();
     const bind=(i,k)=>{const s=content.querySelector('#'+i);s.value=f[k];s.onchange=()=>{f[k]=s.value;draw();};};

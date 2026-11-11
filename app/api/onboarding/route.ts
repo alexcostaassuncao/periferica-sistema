@@ -84,6 +84,11 @@ export async function PATCH(req:Request){
     if(ob.status==='concluido')return json({ok:true});
     const items=((await db.prepare('SELECT step,done FROM onboarding_items WHERE onboarding_id=?').bind(ob.id).all()).results as any[]).map(x=>({...x,done:!!x.done}));
     if(!readyForGestao(items))return json({error:'Para enviar à Gestão, conclua as etapas "Apresentação estratégica" e "Ativação" (apresentação e alinhamentos).'},409);
+    // O cliente não vai para a Gestão sem carteira (senão ele "some" para quem trabalha por carteira).
+    const squad=['C1','C2','C3'].includes(p.squad)?p.squad:'';
+    const cli:any=await db.prepare('SELECT squad FROM clients WHERE id=?').bind(ob.client_id).first();
+    if(squad&&squad!==cli?.squad){await db.prepare('UPDATE clients SET squad=? WHERE id=?').bind(squad,ob.client_id).run();await logEvent(ob.client_id,'sistema','Carteira definida: '+squad,'',u);}
+    else if(!cli?.squad)return json({error:'Escolha a carteira do cliente antes de enviar para a Gestão.',needSquad:true},409);
     await db.batch([
       db.prepare("UPDATE onboardings SET status='concluido',finished_at=? WHERE id=?").bind(now,ob.id),
       db.prepare("UPDATE clients SET phase='gestao' WHERE id=?").bind(ob.client_id),
