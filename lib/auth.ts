@@ -2,7 +2,7 @@ import {database} from '../db/raw';
 import {readSession,sha256,type SessionPayload} from './session';
 import {AREA_KEYS,DEV_PROFILES} from './access';
 
-export type SessionUser={id:string;name:string;email:string;access:string;admin:boolean;areas:string[]};
+export type SessionUser={id:string;name:string;email:string;access:string;admin:boolean;areas:string[];squads:string[]};
 
 // O administrador principal vem das variáveis ADMIN_EMAIL e ADMIN_PASSWORD (configuradas na Vercel).
 // Assim sempre existe um acesso, mesmo com o banco vazio.
@@ -37,13 +37,14 @@ export async function userFromSession(session:SessionPayload|null):Promise<Sessi
   if(session.m==='env'){
     const admin=envAdmin();
     if(!admin||session.uid!=='admin'||session.pv!==await envAdminVersion())return null;
-    return {id:'admin',name:admin.name,email:admin.email,access:'Administrador',admin:true,areas:AREA_KEYS};
+    return {id:'admin',name:admin.name,email:admin.email,access:'Administrador',admin:true,areas:AREA_KEYS,squads:[]};
   }
-  const row:any=await database().prepare('SELECT id,name,email,access,password_hash,areas,active FROM users WHERE id=?').bind(session.uid).first();
+  const row:any=await database().prepare('SELECT id,name,email,access,password_hash,areas,squads,active FROM users WHERE id=?').bind(session.uid).first();
   if(!row||!row.password_hash||!row.active||session.pv!==await passwordVersion(row.password_hash))return null;
   const admin=row.access==='Administrador';
   let areas:string[]=[];try{areas=JSON.parse(row.areas||'[]');}catch{}
-  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin,areas:admin||row.access==='Desenvolvedor'?AREA_KEYS:areas};
+  return {id:row.id,name:row.name,email:row.email||'',access:row.access,admin,areas:admin||row.access==='Desenvolvedor'?AREA_KEYS:areas,
+    squads:String(row.squads||'').split(/[,\s]+/).filter(x=>/^C\d$/.test(x))};
 }
 
 export async function userFromToken(token:string|undefined){return userFromSession(await readSession(token));}
@@ -54,7 +55,8 @@ export function currentUser(req:Request){
   if(!id)return null;
   const admin=h.get('x-pf-admin')==='1';
   return {id,name:decodeURIComponent(h.get('x-pf-user-name')||''),email:decodeURIComponent(h.get('x-pf-user-email')||''),admin,
-    access:decodeURIComponent(h.get('x-pf-access')||''),areas:(h.get('x-pf-areas')||'').split(',').filter(Boolean)};
+    access:decodeURIComponent(h.get('x-pf-access')||''),areas:(h.get('x-pf-areas')||'').split(',').filter(Boolean),
+    squads:(h.get('x-pf-squads')||'').split(',').filter(Boolean)};
 }
 export function isAdmin(req:Request){return currentUser(req)?.admin===true;}
 // Usuário logado com acesso à área (o administrador tem todas).

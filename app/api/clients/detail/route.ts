@@ -14,7 +14,7 @@ export async function GET(req:Request){
   if(!client)return json({error:'Cliente não encontrado.'},404);
   const [lead,contracts,team,events,documents,social,ob,people]=await Promise.all([
     client.lead_id?db.prepare('SELECT l.id,l.source,l.interest,l.notes,l.created_at,l.owner_id,u.name AS owner_name FROM leads l LEFT JOIN users u ON u.id=l.owner_id WHERE l.id=?').bind(client.lead_id).first():null,
-    db.prepare(`SELECT id,kind,model,value,term,status,signed_at,sent_at,created_at FROM contracts WHERE client_id=? OR (lead_id IS NOT NULL AND lead_id=?) ORDER BY created_at DESC`).bind(id,client.lead_id||'-').all(),
+    db.prepare(`SELECT id,kind,model,value,term,status,signed_at,sent_at,created_at,data FROM contracts WHERE client_id=? OR (lead_id IS NOT NULL AND lead_id=?) ORDER BY created_at DESC`).bind(id,client.lead_id||'-').all(),
     db.prepare('SELECT t.role,t.user_id,u.name FROM client_team t LEFT JOIN users u ON u.id=t.user_id WHERE t.client_id=?').bind(id).all(),
     db.prepare('SELECT * FROM client_events WHERE client_id=? ORDER BY happened_at DESC,created_at DESC LIMIT 200').bind(id).all(),
     db.prepare('SELECT * FROM client_documents WHERE client_id=? ORDER BY created_at DESC').bind(id).all(),

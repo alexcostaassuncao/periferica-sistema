@@ -9,115 +9,154 @@
 <link rel="stylesheet" href="css/app.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/tarefa.js"></script>
+<script src="js/reuniao.js"></script>
 <style>
-  .split{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
-  .panel{position:sticky;top:20px}
-  .panel .head{display:flex;gap:12px;align-items:center;padding-bottom:12px}
-  .del{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
-  .del:last-child{border:0}
-  .del .lucide{color:var(--orange);width:17px}
-  .del small{display:block;color:var(--muted);font-size:11.5px}
-  .task{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:12.5px}
-  .task+.task{margin-top:7px}
-  .task small{display:block;color:var(--muted);font-size:11px}
   .day-box{width:52px;height:52px;border-radius:10px;background:var(--panel-3);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none}
-  .day-box b{font-size:20px;line-height:1}.day-box small{font-size:10.5px;color:var(--muted);margin-top:2px}
-  .meet{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px}
-  .meet+.meet{margin-top:7px}
-  .meet.hl{border-color:var(--orange);background:rgba(255,88,11,.07)}
-  .ata h4{font-size:13px;margin:10px 0 6px}
-  .ata ul{padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--soft)}
-  .new-flag{display:flex;align-items:center;gap:14px;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px;background:var(--panel)}
-  .new-flag .lucide{color:var(--orange);width:28px;height:28px}
-  @media (max-width:1200px){.split{grid-template-columns:1fr}.panel{position:static}}
+  .day-box b{font-size:20px;line-height:1}.day-box small{font-size:10.5px;color:var(--muted);margin-top:2px;text-transform:uppercase}
+  .meet{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;flex-wrap:wrap}
+  .meet+.meet{margin-top:8px}
+  .meet.next{border-color:var(--orange);background:rgba(255,88,11,.07)}
+  .info{display:grid;grid-template-columns:150px 1fr;gap:9px 14px;font-size:13px}
+  .info span{color:var(--muted)}
+  .tthumb{width:38px;height:38px;border-radius:8px;object-fit:cover;flex:none;background:var(--panel-3)}
 </style>
 </head>
 <body>
 <script>
 const id=new URLSearchParams(location.search).get('id');
-const content=PF.shell(id?{title:'Clínica Vida+',crumbs:[['Gestão','gestao.html'],['Clínica Vida+']],search:false,actions:`<a class="btn btn-outline" href="agenda.html"><i data-lucide="calendar"></i>Ver no calendário</a>`}:
-  {title:'Gestão',subtitle:'Acompanhe os clientes do seu squad e o andamento das entregas.',crumbs:[['Operação'],['Gestão']],search:'Buscar cliente...',
-   actions:`<select class="select-in" style="width:auto"><option>C1 – Consultoria</option><option>C2 – Consultoria</option><option>C3 – Consultoria</option></select><a class="btn btn-ghost" href="revisao.html"><i data-lucide="eye"></i>Para minha revisão <span class="badge b-solid-orange">18</span></a>`});
-const ST={and:['Em andamento','solid-green'],plan:['Em planejamento','solid-blue'],atr:['Atrasado','solid-amber'],pau:['Pausado','gray']};
-const rows=[['Clínica Vida+','Saúde / Estética','Juliana Ferreira',60,'and','Reunião mensal','12/10/2026'],['Mercado Doce','Alimentos','Carla Mendes',30,'plan','Estratégia','15/10/2026'],['Real Pedras','Revestimentos','Juliana Ferreira',75,'and','Apresentação','18/10/2026'],['Elegance Cortinas','Decoração','Ana Luiza',50,'and','Reunião mensal','20/10/2026'],['DZAM Uniformes','Uniformes','Rafael Lima',20,'atr','Reunião mensal','10/10/2026'],['Pet Love','Pet shop','Carla Mendes',15,'plan','Briefing','22/10/2026'],['Solaris Tech','Tecnologia','Juliana Ferreira',90,'and','Entrega de conteúdo','14/10/2026'],['Bella Forma','Academia','Rafael Lima',10,'pau','Reunião mensal','25/10/2026']];
-let sel=0;
+const esc=PF.esc;
+const content=PF.shell(id?{title:'Gestão',crumbs:[['Gestão','gestao.html'],['…']],search:false}:
+  {title:'Gestão',subtitle:'Clientes da carteira, plano contratado, reuniões e tarefas.',crumbs:[['Operação'],['Gestão']],search:'Buscar cliente...'});
+const fdt=d=>d?d.split('-').reverse().join('/'):'—';
+const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
-function list(){
-  const r=rows[sel];
-  content.innerHTML=`
-  <section class="grid g4 mb">
-    ${PF.kpi({icon:'users',color:'orange',value:'8',label:'Clientes no squad',sub:'C1 – Consultoria'})}
-    ${PF.kpi({icon:'circle-check',color:'green',value:'5',label:'Em andamento'})}
-    ${PF.kpi({icon:'pause',color:'blue',value:'2',label:'Em planejamento'})}
-    ${PF.kpi({icon:'clock',color:'purple',value:'1',label:'Atrasado'})}
-  </section>
-  <div class="split">
+// ---------- LISTA ----------
+async function lista(){
+  let D={clients:[]},f={squad:'',consultora:'',phase:'gestao',q:''};
+  try{D=await PF.api('/api/gestao');}catch(e){PF.toast(e.message,'err');}
+  const draw=()=>{
+    const list=D.clients.filter(c=>(!f.squad||c.squad===f.squad)&&(!f.consultora||c.consultora_id===f.consultora)&&(!f.phase||c.phase===f.phase)&&(!f.q||c.name.toLowerCase().includes(f.q)));
+    const soma=k=>list.reduce((a,c)=>a+Number(c[k]||0),0);
+    const consultoras=[...new Map(D.clients.filter(c=>c.consultora_id).map(c=>[c.consultora_id,c.consultora])).entries()];
+    content.innerHTML=`
+    <section class="grid g4 mb">
+      ${PF.kpi({icon:'users',color:'orange',value:String(list.length),label:'Clientes na lista'})}
+      ${PF.kpi({icon:'list-todo',color:'blue',value:String(soma('abertas')),label:'Tarefas em andamento'})}
+      ${PF.kpi({icon:'alarm-clock',color:'pink',value:String(soma('atrasadas')),label:'Tarefas atrasadas'})}
+      ${PF.kpi({icon:'circle-check',color:'green',value:String(soma('aprovadas_mes')),label:'Aprovadas no mês'})}
+    </section>
     <div class="card">
-      <div class="filters">${PF.select('a','Status',['Status: Todos','Em andamento','Em planejamento','Atrasado','Pausado'])}${PF.select('b','Responsável',['Responsável: Todos','Juliana Ferreira','Carla Mendes','Ana Luiza','Rafael Lima'])}<span style="margin-left:auto">${PF.demo()}</span></div>
-      <div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Squad</th><th>Responsável</th><th>Plano</th><th>Status</th><th>Progresso</th><th>Próxima entrega</th><th></th></tr></thead><tbody>
-      ${rows.map((x,i)=>`<tr class="${i===sel?'hl':''}" data-i="${i}" style="cursor:pointer"><td><div class="who">${PF.chip(x[0])}<div><b>${x[0]}</b><small>${x[1]}</small></div></div></td><td>${PF.badge('C1','orange')}</td><td><div class="who">${PF.avatar(x[2],'md')}<div><b class="small">${x[2]}</b><small>Consultora</small></div></div></td><td>Gestão</td><td>${PF.badge(...ST[x[4]])}</td><td><div class="progress"><div class="bar"><span data-w="${x[3]}" style="width:0"></span></div><span class="small">${x[3]}%</span></div></td><td class="small">${x[5]}<br><span class="muted">${x[6]}</span></td><td><a class="icon-btn" href="gestao.html?id=${i}" aria-label="Abrir"><i data-lucide="chevron-right"></i></a></td></tr>`).join('')}
-      </tbody></table></div>
-      <div class="new-flag"><i data-lucide="user-check"></i><div style="flex:1"><b class="small">Novo cliente entra automaticamente na Gestão</b><div class="muted tiny">após a conclusão do onboarding, já com o squad e a equipe definidos.</div></div><a class="btn btn-ghost btn-sm" href="onboarding.html">Ver onboarding <i data-lucide="chevron-right"></i></a></div>
-    </div>
-    <aside class="card panel">
-      <div class="head">${PF.chip(r[0],'lg')}<div><div class="row"><b style="font-size:17px">${r[0]}</b>${PF.badge(...ST[r[4]])}</div><div class="muted tiny">${r[1]} · Squad C1 · ${r[2]}</div></div></div>
-      <div class="tabs" data-tabs><button data-tab="t" class="on">Tarefas</button><button data-tab="p">Plano</button><button data-tab="h">Histórico</button></div>
-      <section data-pane="t">
-        <div class="card flat mb"><div class="card-head" style="margin-bottom:4px"><h3 class="small">Próximas entregas</h3><a class="link tiny" href="agenda.html">Ver calendário</a></div>
-          ${[['Reunião mensal','12/10/2026'],['Relatório de performance','18/10/2026'],['Apresentação de resultados','25/10/2026']].map(([t,d])=>`<div class="del"><i data-lucide="file-text"></i><div style="flex:1">${t}<small>${d}</small></div>${PF.badge('Gestão','orange')}</div>`).join('')}</div>
-        <div class="row between small" style="margin-bottom:6px"><b>Tarefas do cliente</b><span class="muted">3 de 8 concluídas</span></div>
-        <div class="progress mb"><div class="bar"><span data-w="37" style="width:0"></span></div><span class="small">37%</span></div>
-        ${[['Reunião e alinhamento','1/1 Consultora','green',['Juliana']],['Relatório e estratégia','0/1 Copy + Designer','yellow',['Carla Mendes','Djenifer Lima']],['Criação de conteúdo','0/2 Copy','blue',['Carla Mendes']],['Mídia e tráfego','0/1 Tráfego','orange',['Rafael Santos']],['Aprovação e ajustes','0/1 Cliente','pink',['Clínica Vida']]].map(([t,s,c,who])=>`<div class="task"><span class="ico sm c-${c}"><i data-lucide="${c==='green'?'check':'file'}"></i></span><div style="flex:1">${t}<small>${s}</small></div><span class="avatars">${who.map(w=>PF.avatar(w)).join('')}</span></div>`).join('')}
-        <a class="btn btn-outline" style="width:100%;margin-top:14px" href="gestao.html?id=${sel}"><i data-lucide="file-text"></i>Ver detalhes do plano</a>
-      </section>
-      <section data-pane="p" hidden class="empty"><i data-lucide="construction"></i><div>Plano do mês na próxima etapa.</div></section>
-      <section data-pane="h" hidden class="empty"><i data-lucide="history"></i><div>Sem histórico ainda.</div></section>
-    </aside>
-  </div>`;
-  PF.icons();PF.animateBars();PF.tabs(content);
-  content.querySelectorAll('tr[data-i]').forEach(tr=>tr.onclick=e=>{if(e.target.closest('a'))return;sel=+tr.dataset.i;list();});
+      <div class="filters">
+        ${PF.select('fPhase','Fase',[['gestao','Em Gestão'],['onboarding','Em onboarding'],['','Todas as fases']])}
+        ${PF.select('fSquad','Carteira',[['','Carteira: todas'],['C1','C1'],['C2','C2'],['C3','C3']])}
+        ${PF.select('fCons','Consultora',[['','Consultora: todas'],...consultoras])}
+        <a class="link" href="#" id="clear">Limpar filtros</a>
+      </div>
+      ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Carteira</th><th>Consultora</th><th>Plano contratado</th><th>Tarefas</th><th>Atrasadas</th><th>Próxima reunião</th><th></th></tr></thead><tbody>
+      ${list.map(c=>{const [dt,tt]=(c.proxima||'').split('|');return `<tr><td><a class="who" href="gestao.html?id=${c.id}">${PF.chip(c.name)}<div><b>${esc(c.name)}</b><small>${esc(c.segment||'—')}${c.phase==='onboarding'?' · em onboarding':''}</small></div></a></td>
+        <td>${c.squad?PF.badge(c.squad,'orange'):'—'}</td><td>${esc(c.consultora||'—')}</td><td>${esc(c.plano||c.services||'—')}${c.plano_valor?`<div class="muted tiny">${esc(c.plano_valor)}</div>`:''}</td>
+        <td>${c.abertas}</td><td>${c.atrasadas?PF.badge(String(c.atrasadas),'solid-red'):'0'}</td><td class="small">${dt?fdt(dt.split(' ')[0])+' '+dt.split(' ')[1]+'<div class="muted tiny">'+esc(tt)+'</div>':'—'}</td>
+        <td class="right"><a class="btn btn-ghost btn-sm" href="gestao.html?id=${c.id}">Abrir</a></td></tr>`;}).join('')}</tbody></table></div>`
+      :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros. Clientes entram na Gestão quando o onboarding é concluído.</div></div>`}
+    </div>`;
+    PF.icons();
+    const bind=(i,k)=>{const s=content.querySelector('#'+i);s.value=f[k];s.onchange=()=>{f[k]=s.value;draw();};};
+    bind('fPhase','phase');bind('fSquad','squad');bind('fCons','consultora');
+    content.querySelector('#clear').onclick=e=>{e.preventDefault();f={squad:'',consultora:'',phase:'gestao',q:''};document.getElementById('globalSearch').value='';draw();};
+  };
+  document.getElementById('globalSearch').oninput=e=>{f.q=e.target.value.toLowerCase();draw();};
+  draw();
 }
 
-function detail(){
-  const r=rows[+id]||rows[0];
-  document.querySelector('.page-title h1').textContent=r[0];
-  content.innerHTML=`
-  <div class="card mb"><div class="row between wrap" style="gap:16px">
-    <div class="row" style="gap:14px">${PF.chip(r[0],'lg')}<div><div class="row"><h2 style="font-size:22px">${r[0]}</h2>${PF.badge('Em andamento','green')}</div><div class="muted small">${r[1]} · Squad C1 · Consultora: ${r[2]}</div></div></div>
-    <div style="min-width:260px"><div class="small muted" style="margin-bottom:6px">Progresso do mês</div><div class="progress"><div class="bar"><span data-w="${r[3]}" style="width:0"></span></div><b>${r[3]}%</b></div></div></div></div>
-  <div class="tabs" data-tabs>${['Visão geral','Reuniões e atas','Plano do mês','Tarefas','Campanhas','Social media','Arquivos','Histórico'].map((t,i)=>`<button data-tab="${i}" class="${i===1?'on':''}">${t}</button>`).join('')}</div>
-  <section data-pane="1">
-    <div class="grid g2 mb">
-      <div class="stack">
-        <div class="card"><div class="card-head"><h3><i data-lucide="calendar" style="width:17px;vertical-align:-3px"></i> Próxima reunião</h3></div>
-          <div class="row" style="gap:14px"><div class="day-box"><b>12</b><small>OUT</small></div><div style="flex:1"><b>Reunião mensal</b><div class="muted small row" style="gap:12px;margin-top:4px"><span><i data-lucide="clock" style="width:14px;vertical-align:-2px"></i> 10:00 às 11:00</span><span><i data-lucide="video" style="width:14px;vertical-align:-2px"></i> Google Meet</span></div></div><button class="btn btn-ghost btn-sm">Editar</button><button class="btn btn-primary btn-sm">Iniciar reunião</button></div></div>
-        <div class="card"><div class="card-head"><h3>Últimas reuniões</h3></div>
-          ${[['12/10/2026','Reunião mensal',0],['15/09/2026','Onboarding',1],['28/08/2026','Estratégia inicial',1],['10/07/2026','Alinhamento comercial',1]].map(([d,t,ok],i)=>`<div class="meet ${i===0?'hl':''}"><i data-lucide="file-text"></i><span class="muted">${d}</span><b style="flex:1">${t}</b>${ok?'<span style="color:var(--green)" class="small"><i data-lucide="circle-check" style="width:14px;vertical-align:-2px"></i> Ata enviada</span>':'<span style="color:var(--orange)" class="small"><i data-lucide="clock" style="width:14px;vertical-align:-2px"></i> Em breve</span>'}<i data-lucide="chevron-right"></i></div>`).join('')}</div>
-      </div>
-      <div class="card ata"><div class="card-head"><h3>Ata da reunião</h3><button class="btn btn-ghost btn-sm"><i data-lucide="sparkles"></i>Editar com IA</button></div>
-        <div class="tabs"><button class="on">Resumo da ata</button><button>Transcrição</button></div>
-        <h4>Principais pontos</h4><ul><li>Cliente quer priorizar captação de novos pacientes.</li><li>Foco inicial em tratamentos faciais e corporais.</li><li>Ações para o mês de outubro: campanha de rejuvenescimento e posts educativos.</li><li>Solicitar fotos da clínica e depoimentos de pacientes.</li><li>Início da campanha na segunda quinzena.</li></ul>
-        <h4>Próximos passos</h4><ul><li>Desenvolver planejamento de conteúdo.</li><li>Criar campanha de captação (Meta Ads).</li><li>Preparar materiais para aprovação.</li></ul>
-        <div class="grid g2" style="margin-top:16px"><button class="btn btn-ghost"><i data-lucide="download"></i>Baixar ata (PDF)</button><button class="btn btn-primary" onclick="PF.toast('Ata compartilhada com o cliente.','ok')"><i data-lucide="send"></i>Compartilhar com o cliente</button></div></div>
-    </div>
-    <div class="card"><div class="card-head"><h3>Demandas da reunião</h3><button class="btn btn-primary" id="nd"><i data-lucide="plus"></i>Nova demanda</button></div>
-      <div class="tabs"><button class="on">Social media (8)</button><button>Campanhas (2)</button></div>
-      <div class="table-wrap"><table class="tbl"><thead><tr><th><input type="checkbox" class="chk"></th><th>Descrição</th><th>Tipo</th><th>Responsável</th><th>Prazo</th><th>Status</th><th class="right">Ações</th></tr></thead><tbody id="dem">
-      ${[['Post – Dicas de skincare no verão','Carrossel educativo','Social media','Copy','15/10','Em andamento','solid-blue'],['Post – Depoimento de paciente','Imagem + legenda','Social media','Design','16/10','Pendente','solid-red'],['Post – Bastidores da clínica','Reels','Social media','Copy','17/10','Pendente','solid-red'],['Campanha – Rejuvenescimento','Meta Ads','Campanha','Tráfego','20/10','Pendente','solid-red'],['Post – Resultados tratamentos','Carrossel','Social media','Design','21/10','Não iniciado','gray']].map(([t,s,ty,who,d,st,c])=>`<tr><td><input type="checkbox" class="chk"></td><td><b class="small">${t}</b><div class="muted tiny">${s}</div></td><td>${PF.badge(ty,ty==='Campanha'?'pink':'blue')}</td><td><div class="row">${PF.avatar(who)}${who}</div></td><td>${d}</td><td>${PF.badge(st,c)}</td><td class="right"><a class="btn btn-ghost btn-sm" href="${who==='Design'?'design':who==='Copy'?'copy':'trafego'}.html">Ver</a></td></tr>`).join('')}
-      </tbody></table></div></div>
-  </section>
-  ${[0,2,3,4,5,6,7].map(i=>`<section data-pane="${i}" hidden class="card empty"><i data-lucide="construction"></i><div>Esta aba entra na próxima etapa.</div></section>`).join('')}`;
-  PF.icons();PF.tabs(content);PF.animateBars();
-  content.querySelector('#nd').onclick=()=>{
-    const m=PF.modal(`<div class="modal-head"><h3>Nova demanda</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
-    <form class="stack" id="f"><label class="field"><span>Descrição</span><input class="input" name="t" required placeholder="Post – …"></label>
-    <div class="grid g2"><label class="field"><span>Tipo</span><select class="select-in" name="ty"><option>Social media</option><option>Campanha</option></select></label><label class="field"><span>Responsável</span><select class="select-in" name="w"><option>Copy</option><option>Design</option><option>Tráfego</option></select></label></div>
-    <label class="field"><span>Prazo</span><input class="input" type="date" name="d" required></label>
-    <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Criar e distribuir</button></div></form>`);
-    m.el.querySelector('#f').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));content.querySelector('#dem').insertAdjacentHTML('afterbegin',`<tr><td><input type="checkbox" class="chk"></td><td><b class="small">${PF.esc(d.t)}</b></td><td>${PF.badge(d.ty,d.ty==='Campanha'?'pink':'blue')}</td><td><div class="row">${PF.avatar(d.w)}${d.w}</div></td><td>${d.d.split('-').reverse().slice(0,2).join('/')}</td><td>${PF.badge('Não iniciado','gray')}</td><td></td></tr>`);m.close();PF.toast('Demanda enviada para '+d.w+'.','ok');};
-  };
+// ---------- CLIENTE ----------
+async function cliente(){
+  let D,M=[],T=[],tab=sessionStorage.getItem('pf-gestao-tab')||'reunioes',tf={stage:'',category:''};
+  async function load(){
+    try{[D,M,T]=await Promise.all([PF.api('/api/clients/detail?id='+encodeURIComponent(id)),PF.api('/api/meetings?client='+encodeURIComponent(id)).then(r=>r.meetings),PF.api('/api/tasks?client='+encodeURIComponent(id)).then(r=>r.tasks)]);}
+    catch(e){content.innerHTML=`<div class="card empty"><i data-lucide="search-x"></i><div>${esc(e.message)}</div><a class="btn btn-ghost" href="gestao.html" style="margin-top:12px">Voltar para a Gestão</a></div>`;PF.icons();return;}
+    draw();
+  }
+  function draw(){
+    const c=D.client;
+    document.title='Periférica · Gestão · '+c.name;
+    document.querySelector('.crumbs').innerHTML=`<a href="gestao.html">Gestão</a><i data-lucide="chevron-right"></i><span>${esc(c.name)}</span>`;
+    document.querySelector('.page-title h1').innerHTML=`<a href="gestao.html" class="icon-btn" title="Voltar para a Gestão" style="display:inline-grid;vertical-align:-4px;margin-right:4px"><i data-lucide="arrow-left"></i></a>${esc(c.name)}`;
+    const abertas=T.filter(t=>t.stage!=='aprovada').length,feitas=T.filter(t=>t.stage==='aprovada').length;
+    content.innerHTML=`
+    <div class="card mb"><div class="row between wrap" style="gap:16px">
+      <div class="row" style="gap:14px">${PF.chip(c.name,'lg')}<div><div class="row"><h2 style="font-size:22px">${esc(c.name)}</h2>${PF.badge(c.phase==='gestao'?'Em Gestão':c.phase==='onboarding'?'Em onboarding':'Aguardando',c.phase==='gestao'?'green':'blue')}</div>
+        <div class="muted small">${esc(c.segment||'—')}${c.squad?' · Carteira '+c.squad:''} · Consultora: ${esc((D.team.find(t=>t.role==='consultora')||{}).name||'—')}</div>
+        <a class="link tiny" href="clientes.html?id=${c.id}">Abrir ficha completa do cliente</a></div></div>
+      <div class="row" style="gap:18px"><div><div class="muted tiny">Tarefas em andamento</div><b style="font-size:20px">${abertas}</b></div><div><div class="muted tiny">Aprovadas</div><b style="font-size:20px">${feitas}</b></div></div>
+    </div></div>
+    <div class="tabs">${[['geral','Visão geral'],['reunioes','Reuniões e atas'],['tarefas','Tarefas ('+T.length+')'],['historico','Histórico']].map(([k,l])=>`<button data-t="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}</div>
+    <div id="pane"></div>`;
+    const p=content.querySelector('#pane');
+    ({geral,reunioes,tarefas,historico})[tab](p);
+    PF.icons();
+    content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;sessionStorage.setItem('pf-gestao-tab',tab);draw();});
+  }
+  function geral(p){
+    const assin=D.contracts.filter(k=>k.status==='assin');
+    const plano=assin[0];let pd={};try{pd=JSON.parse(plano?.data||'{}');}catch{}
+    p.innerHTML=`<div class="grid g2">
+      <div class="card"><div class="card-head"><h3>Plano contratado</h3>${plano?`<a class="link tiny" href="/api/contracts/pdf?id=${plano.id}" target="_blank" rel="noopener">Ver contrato</a>`:''}</div>
+        ${plano?`<div class="info"><span>Plano</span><b>${esc(plano.model)}</b><span>Modalidade</span><b>${esc(pd.modalidade||plano.term||'—')}</b><span>Valor</span><b>${esc(plano.value||'—')}</b>
+          <span>Vigência</span><b>${pd.inicio?fdt(pd.inicio)+' a '+fdt(pd.termino):'—'}</b><span>Assinado em</span><b>${new Date(plano.signed_at).toLocaleDateString('pt-BR')}</b></div>
+          ${pd.itens_plano?`<details style="margin-top:12px"><summary class="link small">O que o plano inclui</summary><div class="small muted" style="white-space:pre-wrap;margin-top:8px;line-height:1.5">${esc(pd.itens_plano)}</div></details>`:''}`
+          :'<div class="muted small">Nenhum contrato assinado ligado a este cliente.</div>'}</div>
+      <div class="card"><div class="card-head"><h3>Equipe</h3></div>${D.team.map(t=>`<div class="li"><div class="t"><span>${t.label}</span><b>${esc(t.name||'—')}</b></div></div>`).join('')}</div>
+    </div>`;
+  }
+  function reunioes(p){
+    const hoje=new Date().toISOString().slice(0,10);
+    const prox=M.filter(m=>m.date>=hoje),pass=M.filter(m=>m.date<hoje).reverse(),next=prox[0];
+    const row=(m,isNext)=>`<div class="meet ${isNext?'next':''}"><i data-lucide="calendar"></i><span class="muted">${fdt(m.date)} · ${m.start_time}</span><b style="flex:1;min-width:160px">${esc(m.title)}</b>
+      ${m.has_minutes?'<span class="small" style="color:var(--green)"><i data-lucide="circle-check" style="width:14px;vertical-align:-2px"></i> Ata</span>':''}${m.files?`<span class="muted tiny">${m.files} anexo(s)</span>`:''}
+      ${m.meet_url?`<a class="btn btn-ghost btn-sm" href="${esc(m.meet_url)}" target="_blank" rel="noopener"><i data-lucide="video"></i>Abrir no Google Meet</a>`:''}
+      <button class="btn btn-ghost btn-sm" data-ata="${m.id}"><i data-lucide="file-text"></i>${m.has_minutes?'Editar ata':'Adicionar ata'}</button>
+      <button class="btn btn-ghost btn-sm" data-nt="${m.id}"><i data-lucide="plus"></i>Tarefa</button>
+      <button class="icon-btn" data-ed="${m.id}" title="Editar reunião"><i data-lucide="pencil"></i></button></div>`;
+    p.innerHTML=`<div class="grid g2">
+      <div class="card"><div class="card-head"><h3>Próxima reunião</h3><button class="btn btn-primary btn-sm" id="nm"><i data-lucide="plus"></i>Nova reunião</button></div>
+        ${next?`<div class="row" style="gap:14px"><div class="day-box"><b>${next.date.slice(8)}</b><small>${MES[+next.date.slice(5,7)-1]}</small></div><div style="flex:1"><b>${esc(next.title)}</b>
+          <div class="muted small">${next.start_time} às ${next.end_time} · ${PF.placeLabel(next.place)} · ${next.participants.length} participante(s)</div></div>
+          ${next.meet_url?`<a class="btn btn-primary btn-sm" href="${esc(next.meet_url)}" target="_blank" rel="noopener"><i data-lucide="video"></i>Abrir no Google Meet</a>`:''}<button class="btn btn-ghost btn-sm" data-ed="${next.id}">Editar</button></div>`
+        :'<div class="muted small">Nenhuma reunião marcada.</div>'}
+        ${prox.length>1?'<div style="margin-top:12px">'+prox.slice(1).map(m=>row(m)).join('')+'</div>':''}</div>
+      <div class="card"><div class="card-head"><h3>Reuniões anteriores e atas</h3></div>${pass.map(m=>row(m)).join('')||'<div class="muted small">Nenhuma ainda.</div>'}</div>
+    </div>`;
+    p.querySelector('#nm').onclick=()=>PF.Reuniao.form({client_id:id},{onDone:load});
+    p.querySelectorAll('[data-ed]').forEach(b=>b.onclick=async()=>{const r=await PF.api('/api/meetings?id='+b.dataset.ed);PF.Reuniao.form(r.meeting,{onDone:load});});
+    p.querySelectorAll('[data-ata]').forEach(b=>b.onclick=()=>PF.Reuniao.ata(b.dataset.ata,{onDone:load}));
+    p.querySelectorAll('[data-nt]').forEach(b=>b.onclick=()=>PF.Tarefa.nova({client_id:id,meeting_id:b.dataset.nt,meetings:M,onDone:load}));
+  }
+  function tarefas(p){
+    const list=T.filter(t=>(!tf.stage||t.stage===tf.stage)&&(!tf.category||t.category===tf.category));
+    const {CAT,FMT,STAGES}=PF.taskMeta;
+    p.innerHTML=`<div class="card"><div class="card-head"><div><h3>Tarefas do cliente</h3><p>A Gestão acompanha a tarefa em todas as etapas.</p></div><button class="btn btn-primary" id="nt"><i data-lucide="plus"></i>Nova tarefa</button></div>
+      <div class="filters">${PF.select('fs','Etapa',[['','Etapa: todas'],...STAGES])}${PF.select('fc','Categoria',[['','Categoria: todas'],...Object.entries(CAT)])}<a class="link" href="#" id="clr">Limpar</a><span class="muted small" style="margin-left:auto">${list.length} de ${T.length}</span></div>
+      ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Tarefa</th><th>Etapa</th><th>Com</th><th>Categoria</th><th>Formato</th><th>Prazo</th><th></th></tr></thead><tbody>
+      ${list.map(t=>`<tr><td><div class="who">${t.last_url?(t.last_kind==='video'?'<span class="tthumb" style="display:grid;place-items:center"><i data-lucide="film"></i></span>':`<img class="tthumb" src="${esc(t.last_url)}" alt="">`):'<span class="tthumb" style="display:grid;place-items:center"><i data-lucide="file"></i></span>'}<div><b>${esc(t.title)}</b><small>${t.versions} versão(ões) · ${t.comments} comentário(s)</small></div></div></td>
+        <td>${PF.taskStage(t.stage)}${t.client_status==='ajustes'?'<div class="tiny" style="color:var(--pink)">cliente pediu ajustes</div>':''}</td><td class="small">${esc(t.assignee_name||'—')}</td><td>${CAT[t.category]}</td><td>${FMT[t.format]}</td>
+        <td class="small" style="color:${t.due_date&&t.due_date<new Date().toISOString().slice(0,10)&&t.stage!=='aprovada'?'var(--pink)':'inherit'}">${fdt(t.due_date)}</td>
+        <td class="right"><button class="btn btn-ghost btn-sm" data-open="${t.id}">Ver tarefa</button></td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="empty"><i data-lucide="list-todo"></i><div>Nenhuma tarefa com esses filtros.</div></div>'}</div>`;
+    const fs=p.querySelector('#fs'),fc=p.querySelector('#fc');fs.value=tf.stage;fc.value=tf.category;
+    fs.onchange=()=>{tf.stage=fs.value;tarefas(p);PF.icons();};fc.onchange=()=>{tf.category=fc.value;tarefas(p);PF.icons();};
+    p.querySelector('#clr').onclick=e=>{e.preventDefault();tf={stage:'',category:''};tarefas(p);PF.icons();};
+    p.querySelector('#nt').onclick=()=>PF.Tarefa.nova({client_id:id,meetings:M,onDone:load});
+    p.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>PF.Tarefa.open(b.dataset.open,{onChange:load}));
+  }
+  function historico(p){
+    const K={contato:['phone','blue'],reuniao:['users','purple'],nota:['sticky-note','yellow'],sistema:['bot','gray']};
+    p.innerHTML=`<div class="card"><div class="card-head"><h3>Histórico do cliente</h3><a class="link tiny" href="clientes.html?id=${id}">Registrar contato na ficha</a></div>
+      ${D.events.map(e=>`<div class="li" style="align-items:flex-start"><span class="ico sm c-${K[e.kind][1]}"><i data-lucide="${K[e.kind][0]}"></i></span><div class="t"><b style="white-space:normal">${esc(e.title)}</b><span>${new Date(e.happened_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${esc(e.author_name)}</span>${e.body?`<div class="small" style="white-space:pre-wrap;margin-top:3px;color:var(--soft)">${esc(e.body)}</div>`:''}</div></div>`).join('')||'<div class="muted small">Nada registrado.</div>'}</div>`;
+  }
+  load();
 }
-id!==null?detail():list();
+id?cliente():lista();
 </script>
 </body>
 </html>

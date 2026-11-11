@@ -9,86 +9,80 @@
 <link rel="stylesheet" href="css/app.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
+<script src="js/tarefa.js"></script>
+<script src="js/reuniao.js"></script>
 <style>
-  .split{grid-template-columns:1fr 340px}
-  .cal.wk{grid-template-columns:repeat(5,minmax(0,1fr))}
-  .cal .day:nth-child(7n){border-right:1px solid var(--line)}
-  .cal.wk .day:nth-child(5n){border-right:0}
-  .cal .ev{flex-direction:column;align-items:flex-start;gap:3px;padding:6px 7px}
+  .cal.wk{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .cal .ev{flex-direction:column;align-items:flex-start;gap:2px;padding:5px 7px}
   .cal .ev b{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .cal .ev small{display:flex;gap:8px;color:var(--muted);font-size:10.5px}
-  .cal .ev small .lucide{width:11px;height:11px}
-  .gcal{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;font-size:13px}
-  .gcal .g{width:22px;height:22px;border-radius:5px;background:#fff;color:#1a73e8;font-weight:800;font-size:11px;display:grid;place-items:center}
-  .places{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .places label{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:10px;padding:10px;font-size:12.5px;cursor:pointer}
-  .places input{display:none}
-  .places label:has(input:checked){border-color:var(--orange);background:var(--orange-soft)}
-  .room{display:flex;gap:12px;align-items:center}
-  .room .ph{width:64px;height:52px;border-radius:8px;background:linear-gradient(135deg,#4b3a2c,#2a2018);display:grid;place-items:center;color:#d6b894}
+  .cal .ev small{color:var(--muted);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cal .day{cursor:pointer}
+  .split{grid-template-columns:1fr 330px}
   @media (max-width:1200px){.split{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <script>
-const content=PF.shell({title:'Agenda',subtitle:'Reuniões, participantes e salas — integrado ao Google Calendar.',crumbs:[['Agenda']],search:'Buscar na agenda...',
-  actions:`<span class="gcal"><span class="g">31</span>Google Calendar ${PF.badge('Em breve','gray')}</span><button class="btn btn-primary" id="nm"><i data-lucide="plus"></i>Nova reunião</button>`});
-const COL=['var(--blue)','var(--purple)','var(--green)','var(--yellow)','var(--pink)','var(--orange)'];
-const PL={sala:['door-open','Sala de Reunião'],estudio:['video','Estúdio'],cliente:['map-pin','Cliente'],mesa:['monitor','Minha mesa']};
+const esc=PF.esc;
+const content=PF.shell({title:'Agenda',subtitle:'Reuniões da equipe e dos clientes. O mesmo registro aparece na Gestão do cliente.',crumbs:[['Agenda']],search:'Buscar reunião ou cliente...',
+  actions:`<button class="btn btn-primary" id="nm"><i data-lucide="plus"></i>Nova reunião</button>`});
+const COL={online:'var(--blue)',sala:'var(--orange)',estudio:'var(--purple)',cliente:'var(--green)',mesa:'var(--yellow)'};
 let cur=new Date();cur.setDate(1);
-const today=new Date();
-// eventos de exemplo distribuídos pelo mês atual
-const SAMPLE=[['09:00','Reunião – Mercado Doce','sala',3],['10:30','Alinhamento – C2','estudio',4],['14:00','Reunião – Elegance','cliente',2],['09:30','Planejamento – C3','mesa',3],['11:00','Workshop campanha','estudio',5],['09:00','Reunião – Filetto','cliente',2],['08:00','Alinhamento – C1','sala',3],['10:30','Reunião – Pizzadoro','cliente',2],['09:00','Revisão de entregas','mesa',3],['15:00','Reunião – Estação','estudio',3],['08:30','Planejamento mensal','sala',4],['11:00','Reunião – ELOWAY','cliente',2],['14:00','Apresentação site','estudio',3],['09:00','Reunião – M2 Uniformes','sala',3],['13:00','Treinamento equipe','mesa',5],['10:00','Reunião – Super Amigos','cliente',2],['15:00','Review campanhas','estudio',4],['09:30','Alinhamento – C2','sala',3],['14:00','Reunião – Gastron','cliente',2],['10:00','Fechamento mês','mesa',4]];
-let events=[];
-function seed(){
-  events=[];let k=0;const y=cur.getFullYear(),m=cur.getMonth();
-  for(let d=1;d<=new Date(y,m+1,0).getDate();d++){const wd=new Date(y,m,d).getDay();if(wd===0||wd===6)continue;const e=SAMPLE[k%SAMPLE.length];events.push({date:new Date(y,m,d).toDateString(),time:e[0],title:e[1],place:e[2],n:e[3],c:COL[k%COL.length]});if(d===today.getDate()&&m===today.getMonth())events.push({date:new Date(y,m,d).toDateString(),time:'14:00',title:'Reunião interna',place:'mesa',n:4,c:'var(--orange)'});k++;}
+let M=[],people=[],f={person:'',place:'',client:'',q:'',mine:false};
+const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+async function load(){
+  const y=cur.getFullYear(),m=cur.getMonth();
+  const from=iso(new Date(y,m,1-7)),to=iso(new Date(y,m+1,7));
+  try{[M,people]=await Promise.all([PF.api(`/api/meetings?from=${from}&to=${to}`).then(r=>r.meetings),people.length?people:PF.api('/api/people').then(r=>r.people)]);}catch(e){PF.toast(e.message,'err');}
+  render();
 }
 function render(){
-  const y=cur.getFullYear(),m=cur.getMonth();
-  let start=new Date(y,m,1);while(start.getDay()!==1)start.setDate(start.getDate()-1);
+  const y=cur.getFullYear(),m=cur.getMonth(),hoje=iso(new Date());
+  const list=M.filter(x=>(!f.person||x.participants.includes(f.person))&&(!f.mine||x.participants.includes(PF.user.id))&&(!f.place||x.place===f.place)&&(!f.client||(f.client==='interna'?!x.client_id:x.client_id===f.client))&&(!f.q||(x.title+' '+(x.client_name||'')).toLowerCase().includes(f.q)));
+  const start=new Date(y,m,1);start.setDate(1-start.getDay());
   let cells='';
-  for(let i=0;i<42;i++){
-    const d=new Date(start);d.setDate(start.getDate()+Math.floor(i/5)*7+i%5);
-    if(i>=25&&d.getMonth()!==m&&i%5===0)break;
-    const evs=events.filter(e=>e.date===d.toDateString());
-    cells+=`<div class="day ${d.getMonth()!==m?'out':''} ${d.toDateString()===today.toDateString()?'today':''}"><span class="num">${String(d.getDate()).padStart(2,'0')}</span>
-      ${evs.map(e=>`<div class="ev" style="--c:${e.c}"><b>${e.time} ${PF.esc(e.title)}</b><small><span><i data-lucide="${PL[e.place][0]}"></i> ${PL[e.place][1]}</span><span><i data-lucide="users"></i> ${e.n}</span></small></div>`).join('')}</div>`;
-  }
+  for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);if(i>=35&&d.getMonth()!==m)break;const k=iso(d);
+    const evs=list.filter(x=>x.date===k);
+    cells+=`<div class="day ${d.getMonth()!==m?'out':''} ${k===hoje?'today':''}" data-day="${k}"><span class="num">${d.getDate()}</span>
+      ${evs.map(x=>`<div class="ev" style="--c:${COL[x.place]}" data-ev="${x.id}"><b>${x.start_time} ${esc(x.title)}</b><small>${esc(x.client_name||'Interna')} · ${x.participants.length} pessoa(s)</small></div>`).join('')}</div>`;}
+  const prox=list.filter(x=>x.date>=hoje).slice(0,8);
+  const clients=[...new Map(M.filter(x=>x.client_id).map(x=>[x.client_id,x.client_name])).entries()];
   content.innerHTML=`<div class="split">
     <div class="card">
-      <div class="row between wrap mb"><div class="tabs" style="margin:0;border:0"><button class="on">Minha agenda</button><button>Equipe</button><button>Salas</button><button>Todos</button></div>${PF.demo()}</div>
-      <div class="row between wrap mb">
-        <div class="row"><button class="btn btn-ghost" id="today">Hoje</button><button class="icon-btn" id="prev"><i data-lucide="chevron-left"></i></button><button class="icon-btn" id="next"><i data-lucide="chevron-right"></i></button><b style="font-size:15px">${cur.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())}</b></div>
-        <div class="toggle"><button>Semana</button><button class="on">Mês</button><button>Lista</button></div>
-      </div>
-      <div class="cal wk">${['Seg','Ter','Qua','Qui','Sex'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>
+      <div class="row between wrap mb"><div class="row"><button class="btn btn-ghost" id="today">Hoje</button><button class="icon-btn" id="prev"><i data-lucide="chevron-left"></i></button><button class="icon-btn" id="next"><i data-lucide="chevron-right"></i></button>
+        <b style="font-size:15px">${cur.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())}</b></div><span class="muted small">${list.filter(x=>x.date.slice(0,7)===iso(cur).slice(0,7)).length} reunião(ões) no mês</span></div>
+      <div class="filters">
+        ${PF.select('fp','Participante',[['','Participante: todos'],...people.map(p=>[p.id,p.name])])}
+        ${PF.select('fl','Local',[['','Local: todos'],['online','Online (Meet)'],['sala','Sala de Reunião'],['estudio','Estúdio'],['cliente','No cliente'],['mesa','Minha mesa']])}
+        ${PF.select('fc','Cliente',[['','Cliente: todos'],['interna','Só internas'],...clients])}
+        <label class="row small"><input type="checkbox" class="chk" id="fm" ${f.mine?'checked':''}>Minha agenda</label>
+        <a class="link" href="#" id="clr">Limpar filtros</a></div>
+      <div class="cal wk">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>
+      <p class="muted tiny" style="margin-top:8px">Clique num dia vazio para marcar uma reunião; clique numa reunião para editar.</p>
     </div>
     <aside class="stack">
-      <div class="card" id="form">${form()}</div>
-      <div class="card"><div class="card-head"><h3>Salas</h3><a class="link tiny" href="#">Ver todas</a></div>
-        <div class="room"><div class="ph"><i data-lucide="armchair"></i></div><div style="flex:1"><b class="small">Sala de Reunião</b><div class="row" style="margin-top:4px">${PF.badge('Disponível','solid-green')}<span class="muted tiny">Capacidade: 6 pessoas</span></div></div><i data-lucide="chevron-right" class="muted"></i></div></div>
+      <div class="card"><div class="card-head"><h3>Próximas reuniões</h3></div>
+        ${prox.map(x=>`<div class="li" style="align-items:flex-start"><span class="dot" style="background:${COL[x.place]};margin-top:6px"></span><div class="t"><b style="white-space:normal">${esc(x.title)}</b>
+          <span>${x.date.split('-').reverse().join('/')} · ${x.start_time}–${x.end_time} · ${PF.placeLabel(x.place)}${x.client_name?' · '+esc(x.client_name):''}</span>
+          <div class="row wrap" style="gap:6px;margin-top:6px;white-space:normal;overflow:visible">${x.meet_url?`<a class="btn btn-primary btn-sm" href="${esc(x.meet_url)}" target="_blank" rel="noopener"><i data-lucide="video"></i>Abrir no Google Meet</a>`:''}<button class="btn btn-ghost btn-sm" data-ev="${x.id}">Editar</button><button class="btn btn-ghost btn-sm" data-ata="${x.id}">${x.has_minutes?'Ata':'Adicionar ata'}</button></div></div></div>`).join('')||'<div class="muted small">Nada marcado.</div>'}</div>
+      <div class="card"><div class="card-head"><h3>Locais</h3></div>${Object.entries({online:'Online (Meet)',sala:'Sala de Reunião',estudio:'Estúdio',cliente:'No cliente',mesa:'Minha mesa'}).map(([k,l])=>`<div class="row small" style="margin-bottom:6px"><span class="dot" style="background:${COL[k]}"></span>${l}</div>`).join('')}
+        <p class="muted tiny">Sala e Estúdio não aceitam duas reuniões no mesmo horário: o sistema avisa na hora de salvar.</p></div>
     </aside></div>`;
-  PF.icons();bind();
+  PF.icons();
+  const bind=(i,k)=>{const s=content.querySelector('#'+i);s.value=f[k];s.onchange=()=>{f[k]=s.value;render();};};
+  bind('fp','person');bind('fl','place');bind('fc','client');
+  content.querySelector('#fm').onchange=e=>{f.mine=e.target.checked;render();};
+  content.querySelector('#clr').onclick=e=>{e.preventDefault();f={person:'',place:'',client:'',q:'',mine:false};render();};
+  content.querySelector('#prev').onclick=()=>{cur=new Date(y,m-1,1);load();};
+  content.querySelector('#next').onclick=()=>{cur=new Date(y,m+1,1);load();};
+  content.querySelector('#today').onclick=()=>{cur=new Date();cur.setDate(1);load();};
+  content.querySelectorAll('[data-ev]').forEach(e=>e.onclick=async ev=>{ev.stopPropagation();try{const r=await PF.api('/api/meetings?id='+e.dataset.ev);PF.Reuniao.form(r.meeting,{onDone:load});}catch(x){PF.toast(x.message,'err');}});
+  content.querySelectorAll('[data-ata]').forEach(e=>e.onclick=()=>PF.Reuniao.ata(e.dataset.ata,{onDone:load}));
+  content.querySelectorAll('[data-day]').forEach(d=>d.onclick=()=>PF.Reuniao.form({date:d.dataset.day,participants:PF.user.id?[PF.user.id]:[]},{onDone:load}));
 }
-function form(){
-  return `<div class="card-head"><h3>Nova reunião</h3></div><form class="stack" id="f">
-    <label class="field"><span>Título da reunião</span><input class="input" name="title" required placeholder="Ex.: Alinhamento de campanha"></label>
-    <div class="field"><span>Data e horário</span><div class="row"><input class="input" type="date" name="date" value="${today.toISOString().slice(0,10)}"><input class="input" type="time" name="time" value="09:00" style="width:110px"></div></div>
-    <div class="field"><span>Participantes</span><div class="row">${['Sabrina','Lucas Martins','Tiago Dal Molin'].map(n=>PF.avatar(n,'md')).join('')}<button type="button" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i>Adicionar</button></div></div>
-    <div class="field"><span>Local da reunião</span><div class="places">${Object.entries(PL).map(([k,[i,l]],n)=>`<label><input type="radio" name="place" value="${k}" ${n===0?'checked':''}><i data-lucide="${i}"></i>${l}</label>`).join('')}</div></div>
-    <label class="row small"><input type="checkbox" class="chk" checked name="book">Reservar sala de reunião <span class="muted tiny">(verifica a disponibilidade)</span></label>
-    <label class="field"><span>Descrição (opcional)</span><textarea class="input" name="desc" style="min-height:64px" placeholder="Adicione o objetivo da reunião..."></textarea></label>
-    <div class="grid g2"><button type="reset" class="btn btn-ghost">Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`;
-}
-function bind(){
-  content.querySelector('#prev').onclick=()=>{cur.setMonth(cur.getMonth()-1);seed();render();};
-  content.querySelector('#next').onclick=()=>{cur.setMonth(cur.getMonth()+1);seed();render();};
-  content.querySelector('#today').onclick=()=>{cur=new Date();cur.setDate(1);seed();render();};
-  content.querySelector('#f').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));const dt=new Date(d.date+'T12:00');events.push({date:dt.toDateString(),time:d.time,title:d.title,place:d.place,n:3,c:'var(--orange)'});cur=new Date(dt.getFullYear(),dt.getMonth(),1);render();PF.toast('Reunião agendada.','ok');};
-}
-document.getElementById('nm').onclick=()=>content.querySelector('#f input').focus();
-seed();render();
+document.getElementById('nm').onclick=()=>PF.Reuniao.form({participants:PF.user.id?[PF.user.id]:[]},{onDone:load});
+document.getElementById('globalSearch').oninput=e=>{f.q=e.target.value.toLowerCase();render();};
+load();
 </script>
 </body>
 </html>
