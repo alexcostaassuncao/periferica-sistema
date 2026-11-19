@@ -86,7 +86,7 @@
           <div class="top-right">
             ${opts.actions||''}
             ${opts.search===false?'':`<label class="search"><i data-lucide="search"></i><input id="globalSearch" placeholder="${esc(opts.search||'Buscar clientes, tarefas, campanhas...')}"></label>`}
-            <button class="bell" aria-label="Notificações"><i data-lucide="bell"></i></button>
+            <button class="bell" id="bell" aria-label="Avisos" title="Avisos"><i data-lucide="bell"></i><span class="bell-n" id="bellN" hidden></span></button>
           </div>
         </header>
         <div id="content"></div>
@@ -119,8 +119,31 @@
       document.dispatchEvent(new CustomEvent('pf:me',{detail:PF.user}));
       // Modo desenvolvedor: só para Administrador e Desenvolvedor.
       if(u.admin||u.access==='Desenvolvedor'){const s=document.createElement('script');s.src='js/devmode.js?v=1';document.body.appendChild(s);}
+      PF.loadAvisos();
     }catch{}
   };
+
+  // ---------- painel de avisos (sininho) ----------
+  let avisos=[];
+  PF.loadAvisos=async function(){
+    try{const r=await fetch('/api/avisos');if(!r.ok)return;const d=await r.json();avisos=d.avisos;
+      const n=document.getElementById('bellN');if(n){n.hidden=!d.total;n.textContent=d.total>99?'99+':d.total;}
+      const b=document.getElementById('bell');if(b){b.onclick=togglePanel;b.title=d.total?d.total+' aviso(s)':'Nenhum aviso';}
+    }catch{}
+  };
+  function togglePanel(e){
+    e&&e.stopPropagation();
+    let p=document.getElementById('avisosPanel');
+    if(p){p.remove();return;}
+    p=document.createElement('div');p.id='avisosPanel';p.className='avisos';
+    const al=avisos.filter(a=>a.level==='alerta'),inf=avisos.filter(a=>a.level==='info');
+    const item=a=>`<${a.href?'a href="'+esc(a.href)+'"':'div'} class="av ${a.level}"><span class="ico sm ${a.level==='info'?'c-blue':'c-orange'}"><i data-lucide="${esc(a.icon)}"></i></span><div><b>${esc(a.title)}</b>${a.body?`<small>${esc(a.body)}</small>`:''}</div></${a.href?'a':'div'}>`;
+    p.innerHTML=`<div class="av-head"><b>Avisos</b><button class="icon-btn" id="avClose" aria-label="Fechar"><i data-lucide="x"></i></button></div>
+      <div class="av-list">${al.map(item).join('')||'<div class="av-empty"><i data-lucide="check-circle"></i>Tudo em dia. Nenhum aviso agora.</div>'}${inf.map(item).join('')}</div>`;
+    document.body.appendChild(p);PF.icons();
+    p.querySelector('#avClose').onclick=()=>p.remove();
+    setTimeout(()=>document.addEventListener('click',function out(ev){if(!p.contains(ev.target)){p.remove();document.removeEventListener('click',out);}}),0);
+  }
 
   PF.icons=()=>window.lucide&&lucide.createIcons();
 

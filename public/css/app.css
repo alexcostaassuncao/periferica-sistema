@@ -64,7 +64,17 @@ svg.lucide{width:20px;height:20px;stroke-width:1.8;flex:none}
 .search .lucide{width:18px}
 .bell{position:relative;color:#e6e9ee;display:grid;place-items:center}
 .bell .lucide{width:23px;height:23px}
-.bell::after{content:"";position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--orange);border:2px solid var(--bg)}
+.bell-n{position:absolute;top:-7px;right:-9px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--orange);color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;border:2px solid var(--bg)}
+.avisos{position:fixed;top:70px;right:24px;width:min(420px,calc(100vw - 32px));max-height:min(70vh,600px);overflow:auto;background:var(--panel-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:85;animation:fade .15s}
+.av-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel-2)}
+.av-list{padding:6px}
+.av{display:flex;gap:11px;align-items:flex-start;padding:10px;border-radius:10px;font-size:13px}
+a.av:hover{background:var(--panel-3)}
+.av b{display:block;font-weight:600;line-height:1.35}
+.av small{display:block;color:var(--muted);font-size:12px;margin-top:2px;line-height:1.4}
+.av.info{background:rgba(30,144,255,.07);margin-top:6px}
+.av-empty{display:flex;gap:9px;align-items:center;color:var(--muted);padding:16px 10px;font-size:13px}
+.av-empty .lucide{color:var(--green)}
 .me{display:flex;align-items:center;gap:10px}
 .me b{display:block;font-size:13px}
 .me small{color:var(--muted);font-size:11.5px}

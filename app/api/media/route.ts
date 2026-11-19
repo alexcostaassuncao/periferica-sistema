@@ -6,11 +6,15 @@ export async function POST(req:Request){
   if(!sameOrigin(req))return Response.json({error:'Origem inválida.'},{status:403});
   if(!cloudinaryReady())return Response.json({error:'Armazenamento de mídias ainda não configurado (CLOUDINARY_* na Vercel).'},{status:503});
   const file=await fileInfo(req);
-  const video=file.type.startsWith('video/');
-  if(!/^image\/(png|jpeg|webp)$|^video\/(mp4|quicktime)$/.test(file.type))return Response.json({error:'Use imagens PNG, JPG ou WebP, ou vídeos MP4 e MOV.'},{status:400});
-  if(!(file.size>0)||file.size>(video?100:20)*1024*1024)return Response.json({error:video?'O limite é 100 MB por vídeo.':'O limite é 20 MB por imagem.'},{status:413});
-  // purpose=sugestao: prints do modo desenvolvedor (só imagens).
-  const purpose=new URL(req.url).searchParams.get('purpose');
+  // purpose: publicacao (padrão) · sugestao (prints) · tarefa (referências e entregas) · ata (anexos de reunião, aceita PDF)
+  const purpose=new URL(req.url).searchParams.get('purpose')||'publicacao';
+  const video=file.type.startsWith('video/'),pdf=file.type==='application/pdf';
+  const okType=/^image\/(png|jpeg|webp)$|^video\/(mp4|quicktime)$/.test(file.type)||pdf&&purpose==='ata';
+  if(!okType)return Response.json({error:purpose==='ata'?'Use PDF, PNG ou JPG.':'Use imagens PNG, JPG ou WebP, ou vídeos MP4 e MOV.'},{status:400});
   if(purpose==='sugestao'&&video)return Response.json({error:'Nas sugestões, envie só imagens.'},{status:400});
-  return Response.json({upload:await signUpload({folder:purpose==='sugestao'?'periferica/sugestoes':'periferica/publicacoes',video})},{headers:{'Cache-Control':'no-store'}});
+  if(purpose==='ata'&&video)return Response.json({error:'Na ata, envie PDF ou imagem.'},{status:400});
+  if(!(file.size>0)||file.size>(video?100:20)*1024*1024)return Response.json({error:video?'O limite é 100 MB por vídeo.':'O limite é 20 MB por arquivo.'},{status:413});
+  const folder={sugestao:'periferica/sugestoes',tarefa:'periferica/tarefas',ata:'periferica/atas'}[purpose]||'periferica/publicacoes';
+  // PDF vai pelo endpoint de imagem do Cloudinary (que aceita PDF).
+  return Response.json({upload:await signUpload({folder,video})},{headers:{'Cache-Control':'no-store'}});
 }

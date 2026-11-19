@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Aprovação • Periférica</title>
+<link rel="icon" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Inter",system-ui,sans-serif;background:#0b0b0c;color:#f1f1f1}
+  header{padding:18px 20px;border-bottom:1px solid #ffffff12;display:flex;align-items:center;gap:12px}
+  header img{height:26px}
+  main{max-width:980px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:22px;margin:0 0 4px}.muted{color:#9a9a9a;font-size:14px}
+  .msg{background:#ff580b14;border:1px solid #ff580b55;border-radius:12px;padding:14px 16px;margin:18px 0;white-space:pre-wrap;line-height:1.5}
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+  .frame{border-radius:14px;overflow:hidden;background:#000;border:1px solid #ffffff1a;display:grid;place-items:center}
+  .frame.feed{aspect-ratio:4/5}.frame.stories,.frame.reels{aspect-ratio:9/16;max-height:640px}
+  .frame img,.frame video{width:100%;height:100%;object-fit:contain}
+  .cap{background:#151516;border:1px solid #ffffff14;border-radius:12px;padding:14px 16px;white-space:pre-wrap;line-height:1.55;font-size:14px}
+  label{display:block;font-size:12px;font-weight:700;color:#9a9a9a;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.1em}
+  textarea{width:100%;min-height:90px;background:#000;border:1px solid #ffffff22;border-radius:8px;color:#fff;font:inherit;padding:10px}
+  .btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  button{font:inherit;border:0;border-radius:8px;padding:13px 18px;font-weight:800;cursor:pointer}
+  .ok{background:#ff580b;color:#fff}.adj{background:#222;color:#fff;border:1px solid #ffffff2a}
+  button:disabled{opacity:.5}
+  .done{text-align:center;padding:40px 10px}.done b{font-size:20px;display:block;margin-bottom:6px;color:#ff580b}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><img src="brand/logo-periferica.png" alt="Periférica"></header>
+<main id="app"><p class="muted">Carregando…</p></main>
+<script>
+// Página do cliente: mostra só a entrega, a legenda e a mensagem da equipe.
+const t=new URLSearchParams(location.search).get('t')||'';
+const app=document.getElementById('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FMT={feed:'Post (feed)',stories:'Stories',reels:'Reels'},CH={instagram:'Instagram',facebook:'Facebook',ambos:'Instagram e Facebook'};
+async function load(){
+  const r=await fetch('/api/tasks/cliente?t='+encodeURIComponent(t));const d=await r.json().catch(()=>({}));
+  if(!r.ok){app.innerHTML=`<div class="done"><b>Link indisponível</b><p class="muted">${esc(d.error||'Peça um novo link para a equipe.')}</p></div>`;return;}
+  const respondido=d.status!=='aguardando';
+  app.innerHTML=`<h1>${esc(d.title)}</h1><p class="muted">${esc(d.client)} · ${FMT[d.format]||''} · ${CH[d.channels]||''}</p>
+    ${d.message?`<div class="msg">${esc(d.message)}</div>`:''}
+    <div class="grid">
+      <div class="frame ${esc(d.format)}">${d.media?(d.media.kind==='video'?`<video src="${esc(d.media.url)}" controls playsinline></video>`:`<img src="${esc(d.media.url)}" alt="Prévia">`):'<p class="muted">Sem prévia.</p>'}</div>
+      <div>${d.caption?`<label>Legenda</label><div class="cap">${esc(d.caption)}</div>`:''}
+        ${respondido?`<div class="done"><b>${d.status==='aprovada'?'Aprovado. Obrigado!':'Pedido de ajuste recebido. Obrigado!'}</b><p class="muted">A equipe da Periférica já foi avisada.</p></div>`
+        :`<label>Comentário (obrigatório para pedir ajuste)</label><textarea id="c" placeholder="Escreva aqui se quiser mudar algo"></textarea>
+          <div class="btns"><button class="ok" id="ap">Aprovar</button><button class="adj" id="aj">Pedir ajustes</button></div><p class="muted" id="err" style="color:#f87171"></p>`}
+      </div></div>`;
+  if(respondido)return;
+  const go=async decision=>{const c=document.getElementById('c').value;if(decision==='ajustes'&&c.trim().length<3){document.getElementById('err').textContent='Conte o que você gostaria de ajustar.';return;}
+    document.querySelectorAll('button').forEach(b=>b.disabled=true);
+    const r=await fetch('/api/tasks/cliente',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t,decision,comment:c})});const d2=await r.json().catch(()=>({}));
+    if(!r.ok){document.getElementById('err').textContent=d2.error||'Não foi possível enviar.';document.querySelectorAll('button').forEach(b=>b.disabled=false);return;}
+    load();};
+  document.getElementById('ap').onclick=()=>go('aprovar');document.getElementById('aj').onclick=()=>go('ajustes');
+}
+load();
+</script>
+</body>
+</html>

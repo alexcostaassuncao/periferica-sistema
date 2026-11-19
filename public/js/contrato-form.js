@@ -33,6 +33,10 @@
         ${f('inicio','Início',d.inicio,{type:'date'})}${f('termino','Término',d.termino,{type:'date'})}${f('invest_minimo','Investimento mínimo em anúncios (R$)',d.invest_minimo)}
         ${f('itens_plano','Itens do plano (linha em MAIÚSCULAS vira título)',d.itens_plano,{type:'area',cls:'180px',full:true})}
         ${f('observacoes_extras','Observações extras (uma por linha, opcional)',d.observacoes_extras,{type:'area',cls:'60px',full:true})}</div></fieldset>
+      <fieldset class="cf-box"><legend>Entregas do plano (o que o plano inclui)</legend><div class="cf-grid">
+        ${[['social','Social Media (posts)'],['campanha','Campanha (criativos)'],['video_organico','Vídeo orgânico (vídeos)'],['video_campanha','Vídeo de campanha (vídeos)']].map(([k,l])=>
+          f('entrega_'+k+'_qtd',l,d['entrega_'+k+'_qtd']??0,{type:'number'})+f('entrega_'+k+'_freq','Frequência',d['entrega_'+k+'_freq']||'mes',{list:['mes','semana']})+'<span></span>').join('')}
+        </div><p class="muted tiny" style="margin-top:6px">"semana" = quantidade por semana de produção (o sistema multiplica pelas semanas do mês). "mes" = quantidade fixa no mês.</p></fieldset>
       <fieldset class="cf-box"><legend>Valores e pagamento</legend><div class="cf-grid">
         ${f('implantacao_valor','Implantação (R$) — 0 = sem implantação',d.implantacao_valor)}${f('implantacao_forma','Forma',d.implantacao_forma,{list:FORMAS})}${f('implantacao_vencimento','Vencimento da implantação',d.implantacao_vencimento,{type:'date'})}
         ${f('mensal_valor','Mensalidade (R$)',d.mensal_valor)}${f('mensal_forma','Forma',d.mensal_forma,{list:FORMAS})}${f('mensal_dia','Dia do vencimento mensal',d.mensal_dia,{type:'number'})}

@@ -17,7 +17,7 @@
   // ---------- estilos ----------
   const css=document.createElement('style');
   css.textContent=`
-  .dv-fab{position:fixed;right:20px;bottom:20px;z-index:90;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .dv-fab{position:fixed;right:20px;bottom:20px;z-index:70;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
   .dv-fab>button.main{display:flex;align-items:center;gap:8px;background:#1b1430;border:1px solid #8b5cf6;color:#e9e2ff;border-radius:99px;padding:10px 16px;font-weight:700;font-size:13px;box-shadow:0 10px 30px rgba(139,92,246,.35)}
   .dv-fab>button.main.on{background:#8b5cf6;color:#fff}
   .dv-fab .cnt{background:var(--orange);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px}
