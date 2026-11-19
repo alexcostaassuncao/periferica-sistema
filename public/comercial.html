@@ -32,12 +32,16 @@
   .t-arch{background:linear-gradient(180deg,rgba(244,63,94,.13),var(--panel))}
   .t-hist{background:linear-gradient(180deg,rgba(31,213,154,.12),var(--panel))}
   .empty-col{color:var(--dim);font-size:12px;text-align:center;padding:16px 4px}
+  .attr-divider{display:flex;flex-direction:column;gap:3px;padding-top:12px;border-top:1px solid var(--line)}
+  .report-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .report-table th,.report-table td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line)}
+  .report-table th{color:var(--muted);font-weight:600}
 </style>
 </head>
 <body>
 <script>
 const content=PF.shell({title:'Comercial',subtitle:'Gestão de leads e oportunidades',crumbs:[['Clientes'],['Comercial']],search:'Buscar lead, empresa ou contato...',
-  actions:`<button class="btn btn-primary" id="newLead"><i data-lucide="plus"></i>Novo lead</button>`});
+  actions:`<button class="btn btn-ghost" id="leadReports"><i data-lucide="chart-no-axes-column"></i>Relatórios</button><button class="btn btn-ghost" id="leadReferences"><i data-lucide="tag"></i>Códigos</button><button class="btn btn-primary" id="newLead"><i data-lucide="plus"></i>Novo lead</button>`});
 
 const STAGES=[['novo','Novo lead','var(--blue)'],['contato','Em contato','var(--orange)'],['reuniao','Reunião','var(--purple)'],['proposta','Proposta enviada','var(--yellow)'],['negociacao','Negociação','var(--pink)'],['fechado','Fechado','var(--green)']];
 const SOURCES=['Meta Ads','Google Ads','Prospecção','WhatsApp','Site','Indicação','Instagram','Evento'];
@@ -45,9 +49,11 @@ const SRC={'Meta Ads':'pink','Google Ads':'yellow','Prospecção':'blue','WhatsA
 const CONTRACT={elab:['Contrato em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Contrato assinado','green']};
 const WAIT=['Sem resposta (com data de retorno)','Retomada futura (ex.: 3 meses)','Aguardando definição do cliente'];
 const ARCH=['Não teve interesse','Desqualificado (fora do perfil)','Não respondeu (após tentativas)','Fechou com outra empresa'];
+const CHANNELS=[['manual','Cadastro manual'],['form','Formulário do site'],['whatsapp','WhatsApp manual'],['meta_form','Formulário Meta'],['whatsapp_api','WhatsApp integrado'],['integration','Outra integração']];
 let leads=[],owners=[],tab='andamento',filters={src:'',seg:'',owner:''},q='';
 const ownerName=id=>owners.find(o=>o.id===id)?.name||'';
 const wa=p=>'https://wa.me/55'+String(p||'').replace(/\D/g,'');
+const dateInput=ms=>{if(!ms)return '';const date=new Date(ms);return new Date(ms-date.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 
 async function load(){
   try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;}catch(e){PF.toast(e.message,'err');}
@@ -117,17 +123,63 @@ function fields(l={}){
   <div class="grid g2"><label class="field"><span>Email</span><input class="input" name="email" type="email" value="${PF.esc(l.email||'')}"></label>
     <label class="field"><span>Origem</span><select class="select-in" name="source"><option value="">—</option>${SOURCES.map(o=>`<option ${o===l.source?'selected':''}>${o}</option>`).join('')}</select></label></div>
   <div class="grid g2"><label class="field"><span>Interesse</span><input class="input" name="interest" value="${PF.esc(l.interest||'')}" placeholder="Ex.: Gestão + Tráfego"></label>
-    <label class="field"><span>Responsável comercial</span><select class="select-in" name="owner_id"><option value="">Sem responsável</option>${owners.map(o=>`<option value="${o.id}" ${o.id===l.owner_id?'selected':''}>${PF.esc(o.name)}</option>`).join('')}</select></label></div>`;
+    <label class="field"><span>Responsável comercial</span><select class="select-in" name="owner_id"><option value="">Sem responsável</option>${owners.map(o=>`<option value="${o.id}" ${o.id===l.owner_id?'selected':''}>${PF.esc(o.name)}</option>`).join('')}</select></label></div>
+  <div class="attr-divider"><b>Origem do Lead</b><span class="muted small">Atribuição e parâmetros de campanha</span></div>
+  <div class="grid g2"><label class="field"><span>Canal de entrada</span><select class="select-in" name="lead_source">${CHANNELS.map(([v,label])=>`<option value="${v}" ${v===(l.lead_source||'manual')?'selected':''}>${label}</option>`).join('')}</select></label>
+    <label class="field"><span>Plataforma</span><input class="input" name="platform" value="${PF.esc(l.platform||'')}" placeholder="Meta, Google, TikTok..."></label></div>
+  <div class="grid g2"><label class="field"><span>Campanha</span><input class="input" name="campaign_name" value="${PF.esc(l.campaign_name||'')}"></label>
+    <label class="field"><span>Anúncio ou criativo</span><input class="input" name="ad_name" value="${PF.esc(l.ad_name||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>Código de origem da campanha</span><input class="input" name="reference_code" value="${PF.esc(l.reference_code||'')}" maxlength="40" autocomplete="off"></label>
+    <label class="field"><span>Método de identificação</span><select class="select-in" name="attribution_method">${[['automatic','Automático'],['integration','Integração'],['manual','Manual']].map(([v,label])=>`<option value="${v}" ${v===(l.attribution_method||'manual')?'selected':''}>${label}</option>`).join('')}</select></label></div>
+  <label class="field"><span>Data da conversão</span><input class="input" name="conversion_at" type="datetime-local" value="${dateInput(l.conversion_at||l.created_at)}"></label>
+  <div class="small" data-reference-status aria-live="polite"></div>
+  <div class="grid g2"><label class="field"><span>UTM source</span><input class="input" name="utm_source" value="${PF.esc(l.utm_source||'')}"></label>
+    <label class="field"><span>UTM medium</span><input class="input" name="utm_medium" value="${PF.esc(l.utm_medium||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>UTM campaign</span><input class="input" name="utm_campaign" value="${PF.esc(l.utm_campaign||'')}"></label>
+    <label class="field"><span>UTM content</span><input class="input" name="utm_content" value="${PF.esc(l.utm_content||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>UTM term</span><input class="input" name="utm_term" value="${PF.esc(l.utm_term||'')}"></label>
+    <label class="field"><span>gclid</span><input class="input" name="gclid" value="${PF.esc(l.gclid||'')}"></label></div>
+  <label class="field"><span>fbclid</span><input class="input" name="fbclid" value="${PF.esc(l.fbclid||'')}"></label>`;
 }
-const formData=f=>{const d=Object.fromEntries(new FormData(f));return d;};
+const formData=f=>{
+  const d=Object.fromEntries(new FormData(f));
+  if(d.conversion_at)d.conversion_at=new Date(d.conversion_at).toISOString();
+  return d;
+};
+
+async function resolveReference(form){
+  const input=form.elements.namedItem('reference_code'),status=form.querySelector('[data-reference-status]');
+  const code=String(input?.value||'').trim();
+  if(!code){if(status)status.textContent='';return true;}
+  if(String(input.dataset.initial||'')===code){if(status)status.textContent='';return true;}
+  try{
+    const {reference:r}=await PF.api('/api/lead-references?code='+encodeURIComponent(code));
+    if(String(input.dataset.initial||'')!==code){
+      for(const [key,value] of Object.entries({source:'WhatsApp',lead_source:'whatsapp',attribution_method:'manual',
+        platform:r.platform,campaign_name:r.campaign_name,ad_name:r.ad_name,utm_source:r.utm_source,utm_medium:r.utm_medium,
+        utm_campaign:r.utm_campaign,utm_content:r.utm_content,utm_term:r.utm_term,gclid:r.gclid,fbclid:r.fbclid})){
+        const field=form.elements.namedItem(key);if(field)field.value=value||'';
+      }
+    }
+    if(status){status.textContent=`Código válido: ${r.campaign_name}${r.ad_name?' · '+r.ad_name:''}`;status.className='small note info';}
+    return true;
+  }catch(e){if(status){status.textContent=e.message;status.className='small note err';}return false;}
+}
+function bindReference(form){
+  const input=form.elements.namedItem('reference_code');
+  if(!input)return;
+  input.dataset.initial=String(input.value||'');
+  input.addEventListener('blur',()=>resolveReference(form));
+}
 
 function openLead(l){
   const c=CONTRACT[l.contract_status];
-  const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(l.company)}</h3><p class="muted small">Cadastrado em ${new Date(l.created_at).toLocaleDateString('pt-BR')}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+  const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(l.company)}</h3><p class="muted small">Data da conversão: ${new Date(l.conversion_at||l.created_at).toLocaleDateString('pt-BR')}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
     <form class="stack" id="f">
       ${fields(l)}
       <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage">${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''}>${lb}</option>`).join('')}</select></label>
       <label class="field"><span>Anotações (triagem, interações, combinados)</span><textarea class="input" name="notes" style="min-height:90px">${PF.esc(l.notes||'')}</textarea></label>
+      <div class="card flat" id="leadHistory"><span class="muted small">Carregando histórico...</span></div>
       ${c?`<a class="note info" href="contratos.html"><i data-lucide="file-text"></i><div>${c[0]}. <b>Ver em Contratos →</b></div></a>`:''}
       <div class="row wrap" style="gap:8px">
         ${!c?`<button type="button" class="btn btn-primary btn-sm" id="gen"><i data-lucide="file-plus"></i>Gerar contrato</button>`:''}
@@ -137,7 +189,9 @@ function openLead(l){
       <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div>
     </form>`,{side:true});
   const f=m.el.querySelector('#f');
-  f.onsubmit=async e=>{e.preventDefault();m.close();await patch({id:l.id,...formData(f)},'Lead atualizado.');};
+  bindReference(f);
+  f.onsubmit=async e=>{e.preventDefault();if(!await resolveReference(f))return;m.close();await patch({id:l.id,...formData(f)},'Lead atualizado.');};
+  showLeadHistory(l.id,m.el.querySelector('#leadHistory'));
   const g=m.el.querySelector('#gen');if(g)g.onclick=()=>{m.close();generate(l);};
   m.el.querySelector('#wait').onclick=()=>reason(l,'espera');
   m.el.querySelector('#arch').onclick=()=>reason(l,'arquivado');
@@ -149,10 +203,91 @@ function openLead(l){
       <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Confirmar</button></div></form>`);
     r.el.querySelector('#r').onsubmit=async e=>{e.preventDefault();const d=formData(e.target);r.close();m.close();await patch({id:l.id,situation:kind,...d},kind==='espera'?'Lead em espera.':'Lead arquivado.');};
   }
+
+  async function showLeadHistory(id,box){
+    try{
+      const data=await PF.api('/api/leads/history?lead_id='+encodeURIComponent(id));
+      const attr=data.history.map(item=>{
+        let values={};try{values=JSON.parse(item.new_data);}catch{}
+        return `<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.created_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.created_at)}<div class="muted small">${PF.esc(Object.entries(values).map(([k,v])=>`${k}: ${v||'—'}`).join(' · '))}</div></li>`;
+      }).join('');
+      const stage=data.stages.map(item=>`<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.changed_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.changed_at)}<div class="muted small">${PF.esc(item.from_stage?`${item.from_stage} → ${item.to_stage}`:`Lead criado em ${item.to_stage}`)}</div></li>`).join('');
+      box.innerHTML=`<b>Histórico</b><div class="grid g2" style="margin-top:10px"><div><span class="muted small">Alterações da origem</span><ul class="small" style="padding-left:18px">${attr||'<li>Sem alterações.</li>'}</ul></div><div><span class="muted small">Etapas do funil</span><ul class="small" style="padding-left:18px">${stage||'<li>Sem alterações.</li>'}</ul></div></div>`;
+    }catch(e){box.innerHTML=`<span class="small" style="color:var(--pink)">Não foi possível carregar o histórico: ${PF.esc(e.message)}</span>`;}
+  }
 }
 
 function generate(l){
   PF.contractForm({lead:l,onDone:async()=>{await load();}});
+}
+
+function referenceFormFields(r={}){
+  return `<div class="grid g2"><label class="field"><span>Código de referência</span><input class="input" name="code" required maxlength="40" value="${PF.esc(r.code||'')}" ${r.id?'readonly':''}></label>
+    <label class="field"><span>Plataforma de origem</span><input class="input" name="platform" required value="${PF.esc(r.platform||'')}" placeholder="Meta Ads, Google Ads..."></label></div>
+  <div class="grid g2"><label class="field"><span>Campanha vinculada</span><input class="input" name="campaign_name" required value="${PF.esc(r.campaign_name||'')}"></label>
+    <label class="field"><span>Anúncio ou criativo</span><input class="input" name="ad_name" value="${PF.esc(r.ad_name||'')}"></label></div>
+  <div class="grid g3"><label class="field"><span>ID da campanha</span><input class="input" name="campaign_id" value="${PF.esc(r.campaign_id||'')}"></label>
+    <label class="field"><span>ID do anúncio</span><input class="input" name="ad_id" value="${PF.esc(r.ad_id||'')}"></label>
+    <label class="field"><span>ID do formulário</span><input class="input" name="form_id" value="${PF.esc(r.form_id||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>UTM source</span><input class="input" name="utm_source" value="${PF.esc(r.utm_source||'')}"></label>
+    <label class="field"><span>UTM medium</span><input class="input" name="utm_medium" value="${PF.esc(r.utm_medium||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>UTM campaign</span><input class="input" name="utm_campaign" value="${PF.esc(r.utm_campaign||'')}"></label>
+    <label class="field"><span>UTM content</span><input class="input" name="utm_content" value="${PF.esc(r.utm_content||'')}"></label></div>
+  <div class="grid g2"><label class="field"><span>UTM term</span><input class="input" name="utm_term" value="${PF.esc(r.utm_term||'')}"></label>
+    <label class="field"><span>gclid</span><input class="input" name="gclid" value="${PF.esc(r.gclid||'')}"></label></div>
+  <label class="field"><span>fbclid</span><input class="input" name="fbclid" value="${PF.esc(r.fbclid||'')}"></label>`;
+}
+
+async function editReference(reference=null){
+  const m=PF.modal(`<div class="modal-head"><div><h3>${reference?'Editar código':'Novo código de origem'}</h3><p class="muted small">O código deve ser incluído na mensagem pré-preenchida do anúncio.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <form class="stack" id="referenceForm">${referenceFormFields(reference||{})}<div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar código</button></div></form>`,{wide:true});
+  m.el.querySelector('#referenceForm').onsubmit=async e=>{
+    e.preventDefault();const body=Object.fromEntries(new FormData(e.target));
+    try{
+      await PF.api('/api/lead-references',{method:reference?'PATCH':'POST',body:reference?{...body,id:reference.id}:body});
+      m.close();PF.toast('Código salvo.','ok');showReferences();
+    }catch(error){PF.toast(error.message,'err');}
+  };
+}
+
+async function showReferences(){
+  const m=PF.modal(`<div class="modal-head"><div><h3>Códigos de origem</h3><p class="muted small">Vincule códigos de mensagens do WhatsApp às campanhas e anúncios.</p></div><div class="row"><button class="btn btn-primary btn-sm" id="addReference"><i data-lucide="plus"></i>Novo código</button><button class="icon-btn" data-close><i data-lucide="x"></i></button></div></div><div id="referenceList" class="card flat">Carregando...</div>`,{wide:true});
+  const draw=async()=>{
+    const box=m.el.querySelector('#referenceList');
+    try{
+      const {references}=await PF.api('/api/lead-references');
+      box.innerHTML=references.length?`<table class="report-table"><thead><tr><th>Código</th><th>Plataforma</th><th>Campanha / anúncio</th><th>Criado em</th><th>Status</th><th></th></tr></thead><tbody>${references.map(r=>`<tr>
+        <td><b>${PF.esc(r.code)}</b></td><td>${PF.esc(r.platform)}</td><td>${PF.esc(r.campaign_name)}${r.ad_name?' · '+PF.esc(r.ad_name):''}</td>
+        <td>${PF.fmtDate(r.created_at,{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+        <td>${r.active?'Ativo':'Inativo'}</td><td class="right"><button class="btn btn-ghost btn-sm" data-edit-reference="${r.id}">Editar</button>
+        <button class="btn btn-ghost btn-sm" data-toggle-reference="${r.id}" data-active="${r.active}">${r.active?'Desativar':'Ativar'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">Nenhum código cadastrado.</div>';
+      box.querySelectorAll('[data-edit-reference]').forEach(button=>button.onclick=()=>editReference(references.find(r=>r.id===button.dataset.editReference)));
+      box.querySelectorAll('[data-toggle-reference]').forEach(button=>button.onclick=async()=>{
+        try{await PF.api('/api/lead-references',{method:'PATCH',body:{id:button.dataset.toggleReference,active:button.dataset.active!=='1'}});await draw();}
+        catch(error){PF.toast(error.message,'err');}
+      });
+    }catch(error){box.textContent=error.message;}
+  };
+  m.el.querySelector('#addReference').onclick=()=>editReference();
+  await draw();
+}
+
+async function showLeadReports(){
+  const m=PF.modal(`<div class="modal-head"><div><h3>Relatórios de campanhas</h3><p class="muted small">Leads, canais, etapas atuais e clientes por origem.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <div class="grid g2"><label class="field"><span>De</span><input class="input" type="date" id="reportFrom"></label><label class="field"><span>Até</span><input class="input" type="date" id="reportTo"></label></div><div id="reportContent">Carregando...</div>`,{wide:true});
+  const draw=async()=>{
+    const params=new URLSearchParams(),from=m.el.querySelector('#reportFrom').value,to=m.el.querySelector('#reportTo').value;
+    params.set('tz',String(new Date().getTimezoneOffset()));
+    if(from)params.set('from',from);if(to)params.set('to',to);
+    const box=m.el.querySelector('#reportContent');box.textContent='Carregando...';
+    try{
+      const data=await PF.api('/api/leads/reports?'+params.toString());
+      const table=(title,rows)=>`<section class="card flat mb"><h3>${title}</h3><table class="report-table"><thead><tr><th>Origem</th><th>Leads</th><th>Clientes</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><td>${PF.esc(r.label)}</td><td>${r.leads}</td><td>${r.customers}</td></tr>`).join(''):'<tr><td colspan="3">Sem dados no período.</td></tr>'}</tbody></table></section>`;
+      box.innerHTML=`<p class="muted small mb">${data.total} lead(s) no período.</p><div class="grid g2">${table('Por plataforma',data.byPlatform)}${table('Por canal de entrada',data.byChannel)}${table('Por campanha',data.byCampaign)}${table('Por anúncio',data.byAd)}</div>
+        <section class="card flat"><h3>Funil atual por campanha</h3><table class="report-table"><thead><tr><th>Campanha</th><th>Etapa</th><th>Leads</th><th>Clientes</th></tr></thead><tbody>${data.funnel.length?data.funnel.map(r=>`<tr><td>${PF.esc(r.platform+' · '+r.campaign_name)}</td><td>${PF.esc(STAGES.find(s=>s[0]===r.stage)?.[1]||r.stage)}</td><td>${r.leads}</td><td>${r.customers}</td></tr>`).join(''):'<tr><td colspan="4">Sem dados no período.</td></tr>'}</tbody></table></section>`;
+    }catch(error){box.textContent=error.message;}
+  };
+  m.el.querySelector('#reportFrom').onchange=draw;m.el.querySelector('#reportTo').onchange=draw;draw();
 }
 
 document.getElementById('newLead').onclick=()=>{
@@ -160,8 +295,11 @@ document.getElementById('newLead').onclick=()=>{
   <form class="stack" id="nl">${fields({})}
   <label class="field"><span>Anotações da triagem</span><textarea class="input" name="notes" style="min-height:80px"></textarea></label>
   <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`,{side:true});
-  m.el.querySelector('#nl').onsubmit=async e=>{e.preventDefault();try{await PF.api('/api/leads',{method:'POST',body:formData(e.target)});m.close();PF.toast('Lead adicionado em Novo lead.','ok');load();}catch(x){PF.toast(x.message,'err');}};
+  const form=m.el.querySelector('#nl');bindReference(form);
+  form.onsubmit=async e=>{e.preventDefault();if(!await resolveReference(form))return;try{await PF.api('/api/leads',{method:'POST',body:formData(form)});m.close();PF.toast('Lead adicionado em Novo lead.','ok');load();}catch(x){PF.toast(x.message,'err');}};
 };
+document.getElementById('leadReferences').onclick=showReferences;
+document.getElementById('leadReports').onclick=showLeadReports;
 document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();render();};
 render();load();
 </script>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fale com a Periférica</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .lead-form{width:min(100%,560px)}
+  .lead-form h1{font-size:26px;margin-bottom:8px}
+  .lead-form .intro{color:var(--muted);margin-bottom:20px}
+  .lead-form .brand{font-family:Oswald,sans-serif;color:var(--orange);font-size:18px;letter-spacing:.5px;margin-bottom:18px}
+  .lead-form [aria-live]{min-height:20px}
+  .lead-form .honeypot{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+</style>
+</head>
+<body>
+<main class="card lead-form">
+  <div class="brand">PERIFÉRICA</div>
+  <h1>Vamos conversar?</h1>
+  <p class="intro">Conte um pouco sobre sua empresa. Nossa equipe entrará em contato.</p>
+  <form class="stack" id="leadForm">
+    <label class="field"><span>Empresa</span><input class="input" name="company" required maxlength="120" autocomplete="organization"></label>
+    <label class="field"><span>Seu nome</span><input class="input" name="contact_name" maxlength="120" autocomplete="name"></label>
+    <label class="field"><span>WhatsApp</span><input class="input" name="phone" maxlength="40" autocomplete="tel"></label>
+    <label class="field"><span>Email</span><input class="input" name="email" type="email" maxlength="200" autocomplete="email"></label>
+    <label class="field"><span>Como podemos ajudar?</span><input class="input" name="interest" maxlength="120"></label>
+    <label class="honeypot" aria-hidden="true">Site<input name="website" tabindex="-1" autocomplete="off"></label>
+    <p id="formMessage" class="small" aria-live="polite"></p>
+    <button class="btn btn-primary" type="submit">Enviar contato</button>
+  </form>
+</main>
+<script>
+const form=document.getElementById('leadForm'),message=document.getElementById('formMessage');
+form.addEventListener('submit',async event=>{
+  event.preventDefault();message.textContent='Enviando...';message.className='small muted';
+  const body=Object.fromEntries(new FormData(form));
+  try{
+    const response=await fetch('/api/leads/intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'Não foi possível enviar. Tente novamente.');
+    form.reset();message.textContent='Recebemos seus dados. Em breve entraremos em contato.';message.className='small';
+  }catch(error){message.textContent=error.message;message.className='small';}
+});
+</script>
+</body>
+</html>

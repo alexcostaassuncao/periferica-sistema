@@ -19,6 +19,8 @@ npm run dev                  # http://localhost:3000
 ```
 Sem `TURSO_DATABASE_URL`, usa o arquivo local `periferica-local.db`.
 
+Para testar sem login apenas na máquina local, defina `LOCAL_AUTH_BYPASS=1` no `.env.local` e rode `npm run dev -- --hostname 127.0.0.1`. Acesse `http://127.0.0.1:3000/`; o sistema usará um usuário administrador de teste. Esse modo só funciona em desenvolvimento, em loopback, e sem `TURSO_DATABASE_URL`; não o habilite em produção. O servidor estático da porta 5500 não substitui o servidor Next.js nem suas APIs.
+
 ## Colocar no ar
 
 ### 1. Turso
@@ -65,6 +67,14 @@ Em GitHub → Settings → Secrets and variables → Actions, crie:
 - **Facebook**: Post (foto ou vídeo), Carrossel (várias fotos num post), Reels e Stories.
   Se a Meta não responder na etapa final, o envio fica como **"Confirmar"** e **não é reenviado sozinho**, para não duplicar. Alguém confere na Página e clica em "Já saiu" ou "Reenviar".
 - Mídias do Cloudinary são ajustadas automaticamente: feed em 4:5 e Stories/Reels em 9:16.
+
+## Origem dos leads
+- A página pública `https://SEU-DOMINIO/formulario.html` cadastra contatos no funil comercial. UTMs e `gclid`/`fbclid` recebidos na primeira visita são preservados em cookie first-party por 90 dias e enviados ao lead; uma visita posterior não substitui a primeira origem.
+- No Comercial, **Códigos** permite cadastrar códigos de referência para anúncios que abrem o WhatsApp. Inclua o código na mensagem pré-preenchida (por exemplo, `[Ref: M01]`) e informe-o no cadastro manual do lead. Códigos desconhecidos/inativos são rejeitados sem preencher dados estimados.
+- A ficha do lead mostra a origem, os UTMs, a data de conversão e os históricos de alterações da atribuição e de etapas do funil. **Relatórios** agrega leads e clientes por plataforma, campanha, anúncio e canal, com filtro de período.
+- O cadastro atual continua disponível e leads registrados manualmente são marcados como tais.
+
+**Integrações ainda não conectadas:** não há webhook de Lead Ads nem integração com a API oficial do WhatsApp Business neste projeto. A conexão Meta existente é para publicação e não solicita permissões de recuperação de leads. Portanto, formulários nativos da Meta e referências de conversas do WhatsApp não são recebidos automaticamente; os canais correspondentes no CRM servem apenas para classificação manual até que os produtos, permissões e credenciais de webhook sejam configurados. A API do WhatsApp não deve ser tratada como fonte de UTMs tradicionais; seus metadados de referência, quando disponíveis na integração, precisam ser mapeados separadamente.
 
 ## Próximas redes
 YouTube e LinkedIn entram como novos valores de `network` em `social_accounts`, com um adaptador novo em `db/publish.ts`.
