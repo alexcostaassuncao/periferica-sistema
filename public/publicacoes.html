@@ -62,7 +62,7 @@ async function load(){
   const from=new Date(state.month.getFullYear(),state.month.getMonth()-1,1).getTime(),to=new Date(state.month.getFullYear(),state.month.getMonth()+2,1).getTime();
   try{
     const [p,c]=await Promise.all([PF.api(`/api/publications?from=${from}&to=${to}`),PF.api('/api/clients')]);
-    state.pubs=p.publications;state.clients=c.clients;state.scheduler=p.schedulerReady;
+    state.pubs=p.publications;state.clients=c.clients;state.scheduler=p.schedulerReady;state.ready=p.ready||[];
   }catch(e){PF.toast(e.message,'err');}
   render();
 }
@@ -97,6 +97,11 @@ function render(){
     ${PF.kpi({icon:'loader',color:'yellow',value:String(count(['processing','publishing','unconfirmed'])),label:'Em processamento',click:'processing',active:state.filters.status==='processing'})}
     ${PF.kpi({icon:'triangle-alert',color:'pink',value:String(count(['failed'])),label:'Com falha',click:'failed',active:state.filters.status==='failed'})}
   </section>
+  ${(state.ready||[]).length?`<div class="card mb"><div class="card-head"><div><h2>Aprovados aguardando agendamento</h2><p>Conteúdos aprovados pelo cliente, com o arquivo, a legenda e a data aprovados.</p></div><span class="count">${state.ready.length}</span></div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Conteúdo</th><th>Cliente</th><th>Publicação prevista</th><th></th></tr></thead><tbody>
+    ${state.ready.map(t=>`<tr><td><div class="who">${t.kind==='video'?'<span class="thumb-ph"><i data-lucide="film"></i></span>':`<img class="thumb" src="${PF.esc(t.url)}" alt="" loading="lazy">`}<div><b>${PF.esc(t.title)}</b><small>${PF.esc((t.caption||'').slice(0,80))}</small></div></div></td>
+      <td>${PF.esc(t.client_name)}</td><td>${t.publish_date?t.publish_date.split('-').reverse().join('/'):'—'}</td><td class="right"><button class="btn btn-primary btn-sm" data-sched="${t.id}"><i data-lucide="calendar-check"></i>Agendar</button></td></tr>`).join('')}
+    </tbody></table></div></div>`:''}
   <div class="card">
     <div class="filters">
       <button class="icon-btn" id="prev" aria-label="Mês anterior"><i data-lucide="chevron-left"></i></button>
@@ -122,6 +127,7 @@ function render(){
   content.querySelectorAll('[data-kpi]').forEach(k=>k.onclick=()=>{f.status=f.status===k.dataset.kpi?'':k.dataset.kpi;render();});
   content.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>act(b.dataset.act,b.dataset.id,b.dataset.pub));
   content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>details(b.dataset.open));
+  content.querySelectorAll('[data-sched]').forEach(b=>b.onclick=()=>openNew(state.ready.find(t=>t.id===b.dataset.sched)));
   PF.icons();
 }
 
@@ -208,10 +214,12 @@ function details(id){
 }
 
 // ---------- Nova publicação ----------
-window.openNew=function(){
+window.openNew=function(pre=null){
   const clients=state.clients;
   const now=new Date(Date.now()+60*60000);now.setMinutes(0,0,0);
-  const dt=now.toISOString().slice(0,10),tm=now.toTimeString().slice(0,5);
+  // Entrega aprovada: usa a data de publicação aprovada (às 10h), se ainda estiver no futuro.
+  const preDate=pre?.publish_date&&pre.publish_date>=now.toISOString().slice(0,10)?pre.publish_date:null;
+  const dt=preDate||now.toISOString().slice(0,10),tm=preDate?'10:00':now.toTimeString().slice(0,5);
   const m=PF.modal(`<div class="modal-head"><div><h3>Nova publicação</h3><p class="muted small">Publica direto no Instagram e na Página do Facebook do cliente.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
   <form class="stack" id="np">
     <label class="field"><span>Cliente</span><select class="select-in" name="clientId" required><option value="">Escolha o cliente…</option>${clients.map(c=>`<option value="${c.id}">${PF.esc(c.name)}</option>`).join('')}</select></label>
@@ -306,7 +314,7 @@ window.openNew=function(){
     e.preventDefault();
     if(uploading)return PF.toast('Aguarde o envio da mídia terminar.','err');
     const networks=[...f.querySelectorAll('[name=net]:checked')].map(x=>x.value);
-    const body={clientId:F.clientId.value,format:fmt(),networks,title:F.title.value,caption:F.caption.value,mode,
+    const body={clientId:F.clientId.value,format:fmt(),networks,title:F.title.value,caption:F.caption.value,mode,taskId:pre?.id||undefined,
       media:media.filter(x=>x.url).map(({url,kind,width,height})=>({url,kind,width,height}))};
     if(mode==='schedule'){const d=new Date(F.date.value+"T"+F.time.value);body.dueAt=d.getTime();}
     const btn=m.el.querySelector('#submit');btn.disabled=true;
@@ -317,8 +325,16 @@ window.openNew=function(){
       await load();if(mode==='now')watch(r.id);
     }catch(x){PF.toast(x.message,'err');btn.disabled=false;}
   };
+  // Preenche com a entrega aprovada: cliente, formato, arquivo, título e legenda aprovados.
+  if(pre){
+    F.clientId.value=pre.client_id;F.clientId.onchange();
+    const fv=pre.format==='stories'?'stories':pre.format==='reels'?'reels':'post';
+    const r=f.querySelector(`[name=format][value=${fv}]`);if(r){r.checked=true;sync();}
+    F.title.value=pre.title.slice(0,140);F.caption.value=pre.caption||'';F.caption.oninput();
+    if(pre.url){media=[{url:pre.url,kind:pre.kind==='video'?'video':'image',preview:pre.kind==='video'?'':pre.url,progress:100}];drawMedia();}
+  }
 };
-document.getElementById('newPub').onclick=openNew;
+document.getElementById('newPub').onclick=()=>openNew();
 document.getElementById('globalSearch').oninput=e=>{state.q=e.target.value;render();};
 render();load().then(()=>{
   // Retoma o acompanhamento de envios em andamento

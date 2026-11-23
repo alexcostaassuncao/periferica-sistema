@@ -1,14 +1,16 @@
 import {database} from './raw';
 
 /* Fluxo da tarefa (o MESMO registro do começo ao fim):
-   gestao → copy → design → revisao → cliente → aprovada
-   Revisão pode devolver para copy ou design (com motivo). Se o cliente pedir ajustes, volta para revisao. */
+   gestao → copy → [video] → design → revisao → cliente → aprovada
+   "video" (Videomaker: captação e edição) é usada nas tarefas de vídeo; quem tem acesso ao Design trabalha nela
+   e pode mandar para o Design ou direto para a Revisão.
+   Revisão pode devolver para copy, video ou design (com motivo). Se o cliente pedir ajustes, volta para revisao. */
 
-export const STAGES=['gestao','copy','design','revisao','cliente','aprovada'] as const;
-export const STAGE_LABEL:Record<string,string>={gestao:'Gestão',copy:'Copy',design:'Design',revisao:'Revisão',cliente:'Com o cliente',aprovada:'Aprovada'};
+export const STAGES=['gestao','copy','video','design','revisao','cliente','aprovada'] as const;
+export const STAGE_LABEL:Record<string,string>={gestao:'Gestão',copy:'Copy',video:'Videomaker',design:'Design',revisao:'Revisão',cliente:'Com o cliente',aprovada:'Aprovada'};
 export const CATEGORIES=['social','campanha','video_organico','video_campanha'],FORMATS=['feed','stories','reels'],CHANNELS=['instagram','facebook','ambos'];
 // Papel da equipe do cliente que recebe a tarefa em cada etapa (para sugerir o responsável).
-export const STAGE_ROLE:Record<string,string>={copy:'copy',design:'design',revisao:'consultora',gestao:'consultora'};
+export const STAGE_ROLE:Record<string,string>={copy:'copy',video:'video',design:'design',revisao:'consultora',gestao:'consultora'};
 
 export type U={id:string;name:string;admin:boolean;access:string;areas:string[];squads:string[]};
 const has=(u:U,a:string)=>u.admin||u.areas.includes(a);
@@ -32,11 +34,12 @@ export function taskCan(u:U,t:any){
   return {
     editBase:g&&s!=='aprovada',                                   // título, descrição, estratégia, prazo, formato...
     editCopy:(cp||g)&&['gestao','copy'].includes(s),              // briefing complementar, referências, texto da arte, legenda
-    addRefs:(cp||g)&&['gestao','copy','design'].includes(s),
-    addVersion:ds&&s==='design',
+    addRefs:(cp||g)&&['gestao','copy','video','design'].includes(s),
+    addVersion:ds&&['video','design'].includes(s),
     sendCopy:g&&s==='gestao',
-    sendDesign:cp&&s==='copy',
-    sendReview:ds&&s==='design',
+    sendVideo:cp&&s==='copy',
+    sendDesign:(cp&&s==='copy')||(ds&&s==='video'),
+    sendReview:ds&&['video','design'].includes(s),
     adjust:rv&&s==='revisao',
     share:rv&&['revisao','cliente'].includes(s),
     clientResult:(rv||g)&&s==='cliente',

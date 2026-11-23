@@ -5,6 +5,8 @@ import {mailReady,sendMail} from '../../../lib/mail';
 import {sha256} from '../../../lib/session';
 import {siteOrigin} from '../../../db/social';
 import {CATEGORIES,CHANNELS,FORMATS,STAGE_LABEL,STAGE_ROLE,canSeeTasks,cleanUrl,logTask,taskCan,visibilitySql,type U} from '../../../db/tarefas';
+import {taskApproved} from '../../../db/ciclos';
+const isDate=(v:any)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
 
 const json=(d:any,s=200)=>Response.json(d,{status:s,headers:{'Cache-Control':'no-store'}});
 const denied=(m='Você não tem acesso às tarefas.')=>json({error:m},403);
@@ -65,7 +67,7 @@ export async function GET(req:Request){
   if(due==='hoje'){where.push('t.due_date=?');args.push(hoje);}
   if(due==='semana'){const fim=new Date(Date.now()+7*86400000).toISOString().slice(0,10);where.push('t.due_date>=? AND t.due_date<=?');args.push(hoje,fim);}
   if(q.get('q')){where.push('(t.title LIKE ? OR c.name LIKE ?)');args.push('%'+q.get('q')+'%','%'+q.get('q')+'%');}
-  const rows=(await db.prepare(`SELECT t.id,t.client_id,t.title,t.stage,t.category,t.format,t.channels,t.due_date,t.client_status,t.assignee_id,t.responsible_id,t.updated_at,t.meeting_id,
+  const rows=(await db.prepare(`SELECT t.id,t.client_id,t.title,t.stage,t.category,t.format,t.channels,t.due_date,t.publish_date,t.plan_month,t.client_status,t.assignee_id,t.responsible_id,t.updated_at,t.meeting_id,
       c.name AS client_name,c.squad,
       (SELECT url FROM task_versions v WHERE v.task_id=t.id ORDER BY version DESC LIMIT 1) AS last_url,
       (SELECT kind FROM task_versions v WHERE v.task_id=t.id ORDER BY version DESC LIMIT 1) AS last_kind,
@@ -120,11 +122,16 @@ export async function PATCH(req:Request){
         for(const k of ['description','strategy'])if(typeof p[k]==='string'){sets.push(k+'=?');args.push(s(p[k],6000));}
         if(typeof p.responsible_id==='string'){sets.push('responsible_id=?');args.push(s(p.responsible_id,60));}
         if(typeof p.due_date==='string'){sets.push('due_date=?');args.push(/^\d{4}-\d{2}-\d{2}$/.test(p.due_date)?p.due_date:'');}
+        if(typeof p.publish_date==='string'){sets.push('publish_date=?');args.push(isDate(p.publish_date)?p.publish_date:'');}
+        if(typeof p.objective==='string'){sets.push('objective=?');args.push(s(p.objective,2000));}
+        if(p.needs_capture!==undefined){sets.push('needs_capture=?');args.push(p.needs_capture===true||p.needs_capture==='1'?1:0);}
+        for(const k of ['capture_id','editor_id'])if(typeof p[k]==='string'){sets.push(k+'=?');args.push(s(p[k],60));}
         if(CATEGORIES.includes(p.category)){sets.push('category=?');args.push(p.category);}
         if(FORMATS.includes(p.format)){sets.push('format=?');args.push(p.format);}
         if(CHANNELS.includes(p.channels)){sets.push('channels=?');args.push(p.channels);}
         if(p.meeting_id!==undefined){sets.push('meeting_id=?');args.push(p.meeting_id||null);}
       }
+      if(can.editCopy&&typeof p.script==='string'){sets.push('script=?');args.push(s(p.script,8000));}
       if(can.editCopy)for(const k of ['copy_notes','art_text','caption'])if(typeof p[k]==='string'){sets.push(k+'=?');args.push(s(p[k],k==='caption'?2200:6000));}
       if(!sets.length)return json({error:'Você não pode editar esta tarefa nesta etapa.'},403);
       await db.prepare(`UPDATE tasks SET ${sets.join(',')},updated_at=? WHERE id=?`).bind(...args,now,t.id).run();
@@ -137,12 +144,14 @@ export async function PATCH(req:Request){
         if(!can.sendCopy)return denied('Só a Gestão envia para o Copy.');
         const faltam=[!t.title&&'título',!(t.description||t.strategy)&&'descrição ou direcionamento',!t.due_date&&'prazo'].filter(Boolean);
         if(faltam.length)return json({error:'Preencha e salve: '+faltam.join(', ')+'.'},400);
+      }else if(to==='video'){
+        if(!can.sendVideo)return denied('Só o Copy envia para o Videomaker.');
       }else if(to==='design'){
-        if(!can.sendDesign)return denied('Só o Copy envia para o Design.');
-        const faltam=[!t.art_text&&'texto da arte',!t.caption&&t.format!=='stories'&&'legenda'].filter(Boolean);
+        if(!can.sendDesign)return denied('Só o Copy ou o Videomaker enviam para o Design.');
+        const faltam=t.stage==='copy'?[!t.art_text&&'texto da arte',!t.caption&&t.format!=='stories'&&'legenda'].filter(Boolean):[];
         if(faltam.length)return json({error:'Preencha e salve: '+faltam.join(' e ')+'.'},400);
       }else if(to==='revisao'){
-        if(!can.sendReview)return denied('Só o Design envia para a Revisão.');
+        if(!can.sendReview)return denied('Só o Design ou o Videomaker enviam para a Revisão.');
         if(!await db.prepare('SELECT id FROM task_versions WHERE task_id=?').bind(t.id).first())return json({error:'Anexe a arte ou o vídeo antes de enviar para a Revisão.'},400);
       }else return json({error:'Etapa inválida.'},400);
       const assignee=s(p.assignee_id,60)||await defaultAssignee(t.client_id,to);
@@ -153,7 +162,7 @@ export async function PATCH(req:Request){
     case 'adjust':{
       if(!can.adjust)return denied('Só a Revisão pode pedir ajustes.');
       const reason=s(p.reason,2000);if(reason.length<5)return json({error:'Explique o que precisa ser ajustado.'},400);
-      if(!['copy','design'].includes(p.target))return json({error:'Escolha se o ajuste é no Copy ou no Design.'},400);
+      if(!['copy','video','design'].includes(p.target))return json({error:'Escolha se o ajuste é no Copy, no Videomaker ou no Design.'},400);
       await move(p.target,'ajuste',s(p.assignee_id,60)||await defaultAssignee(t.client_id,p.target),reason);
       return json({ok:true});
     }
@@ -182,11 +191,22 @@ export async function PATCH(req:Request){
       if(p.result==='aprovada'){
         await db.prepare("UPDATE tasks SET stage='aprovada',client_status='aprovada',updated_at=? WHERE id=?").bind(now,t.id).run();
         await logTask(t.id,u,'aprovada',{from:'cliente',to:'aprovada',reason:s(p.feedback,2000)});
+        await taskApproved(t.id);
       }else{
         const fb=s(p.feedback,2000);if(fb.length<3)return json({error:'Escreva o que o cliente pediu.'},400);
         await db.prepare("UPDATE tasks SET stage='revisao',client_status='ajustes',client_feedback=?,updated_at=? WHERE id=?").bind(fb,now,t.id).run();
         await logTask(t.id,u,'cliente_ajustes',{from:'cliente',to:'revisao',reason:fb});
       }
+      return json({ok:true});
+    }
+    // Liberar na grade do mês: o cliente vê e aprova pela grade (Gestão → Ciclo do mês), sem link individual.
+    case 'to_client':{
+      if(!can.share)return denied('Só a Revisão libera para o cliente.');
+      if(!t.plan_month)return json({error:'Esta tarefa não pertence a um ciclo mensal. Use "Liberar para o cliente".'},400);
+      if(!await db.prepare('SELECT id FROM task_versions WHERE task_id=?').bind(t.id).first())return json({error:'Não há entrega para mostrar ao cliente.'},400);
+      const r=await db.prepare("UPDATE tasks SET stage='cliente',client_status='aguardando',client_feedback='',updated_at=? WHERE id=? AND stage IN ('revisao','cliente')").bind(now,t.id).run();
+      if(!r.meta.changes)return json({error:'A tarefa mudou de etapa. Atualize a página.'},409);
+      await logTask(t.id,u,'liberada',{from:t.stage,to:'cliente',toUser:t.client_contact||t.client_name,reason:'Liberada na grade do mês'});
       return json({ok:true});
     }
     case 'comment':{

@@ -1,7 +1,8 @@
 import {database} from './raw';
 import {envAdmin} from '../lib/auth';
 
-export const STAGES=['novo','contato','reuniao','proposta','negociacao','fechado'];
+export const STAGES=['novo','contato','reuniao','proposta','aguardando_contrato','fechado','venda_perdida'];
+export const PRODUCT_CATEGORIES=['gestao','projeto','outro'] as const;
 
 // Pessoas que podem ser responsáveis por um lead (quem tem acesso ao Comercial).
 export async function owners(){

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Grade do mês • Periférica</title>
+<link rel="icon" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Inter",system-ui,sans-serif;background:#0b0b0c;color:#f1f1f1}
+  header{padding:18px 20px;border-bottom:1px solid #ffffff12;display:flex;align-items:center;gap:12px}
+  header img{height:26px}
+  main{max-width:1040px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:22px;margin:0 0 4px}.muted{color:#9a9a9a;font-size:14px}
+  .sum{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+  .sum div{background:#151516;border:1px solid #ffffff14;border-radius:12px;padding:12px 16px;min-width:130px}
+  .sum b{display:block;font-size:22px}.sum span{font-size:12px;color:#9a9a9a}
+  .filt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .filt button{background:#151516;color:#ddd;border:1px solid #ffffff1a;padding:8px 12px;font-weight:600}
+  .filt button.on{background:#ff580b;border-color:#ff580b;color:#fff}
+  .item{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:18px;background:#121213;border:1px solid #ffffff14;border-radius:14px;padding:16px;margin-bottom:14px}
+  .frame{border-radius:12px;overflow:hidden;background:#000;border:1px solid #ffffff1a;display:grid;place-items:center}
+  .frame.feed{aspect-ratio:4/5}.frame.stories,.frame.reels{aspect-ratio:9/16;max-height:480px}
+  .frame img,.frame video{width:100%;height:100%;object-fit:contain}
+  .tag{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px;margin-right:6px;background:#ffffff14}
+  .tag.aguardando{background:#ff580b26;color:#ff8b57}.tag.aprovada{background:#1fd59a26;color:#4be3b0}.tag.ajustes{background:#f43f5e26;color:#ff8da1}
+  .cap{background:#0b0b0c;border:1px solid #ffffff14;border-radius:10px;padding:12px 14px;white-space:pre-wrap;line-height:1.55;font-size:14px}
+  label{display:block;font-size:12px;font-weight:700;color:#9a9a9a;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.1em}
+  textarea{width:100%;min-height:70px;background:#000;border:1px solid #ffffff22;border-radius:8px;color:#fff;font:inherit;padding:10px}
+  .btns{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  button{font:inherit;border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer}
+  .ok{background:#ff580b;color:#fff}.adj{background:#222;color:#fff;border:1px solid #ffffff2a}
+  button:disabled{opacity:.5}
+  .err{color:#f87171;font-size:14px}
+  .done{text-align:center;padding:40px 10px}.done b{font-size:20px;display:block;margin-bottom:6px;color:#ff580b}
+  @media(max-width:700px){.item{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><img src="brand/logo-periferica.png" alt="Periférica"></header>
+<main id="app"><p class="muted">Carregando…</p></main>
+<script>
+// Portal do cliente: grade de conteúdos do mês. Cada conteúdo é aprovado (ou volta para ajuste) independente dos outros.
+const t=new URLSearchParams(location.search).get('t')||'';
+const app=document.getElementById('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FMT={feed:'Post (feed)',stories:'Stories',reels:'Reels'},CAT={social:'Post',campanha:'Campanha',video_organico:'Vídeo',video_campanha:'Vídeo de campanha'};
+const ST={aguardando:'Aguardando sua aprovação',aprovada:'Aprovado',ajustes:'Alteração solicitada'};
+const fdt=d=>d?d.split('-').reverse().join('/'):'a definir';
+let D=null,filtro='aguardando';
+async function load(){
+  const r=await fetch('/api/ciclos/grade?t='+encodeURIComponent(t));const d=await r.json().catch(()=>({}));
+  if(!r.ok){app.innerHTML=`<div class="done"><b>Link indisponível</b><p class="muted">${esc(d.error||'Peça um novo link para a equipe.')}</p></div>`;return;}
+  D=d;draw();
+}
+function draw(){
+  const s=D.summary,items=D.items.filter(i=>filtro==='todos'||i.status===filtro);
+  app.innerHTML=`<h1>Grade de conteúdos · ${esc(D.label)}</h1><p class="muted">${esc(D.client)}. Aprove ou peça alteração em cada conteúdo; um não depende do outro.</p>
+    <div class="sum"><div><b>${s.aguardando}</b><span>Aguardando aprovação</span></div><div><b>${s.aprovadas}</b><span>Aprovados</span></div><div><b>${s.ajustes}</b><span>Em ajuste</span></div><div><b>${s.producao}</b><span>Ainda em produção</span></div></div>
+    <div class="filt">${[['aguardando','Para aprovar'],['aprovada','Aprovados'],['todos','Todos']].map(([k,l])=>`<button data-f="${k}" class="${filtro===k?'on':''}">${l}</button>`).join('')}</div>
+    ${items.map(i=>`<div class="item" id="i-${i.id}">
+      <div class="frame ${esc(i.format)}">${i.media?(i.media.kind==='video'?`<video src="${esc(i.media.url)}" controls playsinline preload="metadata"></video>`:`<img src="${esc(i.media.url)}" alt="Prévia" loading="lazy">`):'<p class="muted">Sem prévia.</p>'}</div>
+      <div><div><span class="tag ${i.status}">${ST[i.status]}</span><span class="tag">${CAT[i.category]||''} · ${FMT[i.format]||''}</span></div>
+        <h3 style="margin:10px 0 2px">${esc(i.title)}</h3><p class="muted" style="margin:0">Publicação prevista: <b style="color:#fff">${fdt(i.publish_date)}</b></p>
+        ${i.art_text?`<label>Texto da arte</label><div class="cap">${esc(i.art_text)}</div>`:''}
+        ${i.caption?`<label>Legenda</label><div class="cap">${esc(i.caption)}</div>`:''}
+        ${i.status==='aguardando'?`<label>Comentário (obrigatório para pedir alteração)</label><textarea data-c="${i.id}" placeholder="Escreva aqui se quiser mudar algo"></textarea>
+          <div class="btns"><button class="ok" data-ap="${i.id}">Aprovar</button><button class="adj" data-aj="${i.id}">Pedir alteração</button></div><p class="err" data-err="${i.id}"></p>`
+          :`<p class="muted" style="margin-top:14px">${i.status==='aprovada'?'Aprovado. Obrigado!':'Recebemos seu pedido de alteração. A equipe já está ajustando.'}</p>`}
+      </div></div>`).join('')||`<div class="done"><b>${filtro==='aguardando'?'Nada aguardando sua aprovação agora.':'Nenhum conteúdo aqui.'}</b><p class="muted">Quando a equipe liberar novos conteúdos, eles aparecem nesta página.</p></div>`}`;
+  app.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{filtro=b.dataset.f;draw();});
+  const go=async(id,decision)=>{
+    const c=app.querySelector(`[data-c="${id}"]`).value,err=app.querySelector(`[data-err="${id}"]`);
+    if(decision==='ajustes'&&c.trim().length<3){err.textContent='Conte o que você gostaria de alterar.';return;}
+    app.querySelectorAll(`#i-${id} button`).forEach(b=>b.disabled=true);
+    const r=await fetch('/api/ciclos/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t,task_id:id,decision,comment:c})});const d=await r.json().catch(()=>({}));
+    if(!r.ok){err.textContent=d.error||'Não foi possível enviar.';app.querySelectorAll(`#i-${id} button`).forEach(b=>b.disabled=false);return;}
+    load();
+  };
+  app.querySelectorAll('[data-ap]').forEach(b=>b.onclick=()=>go(b.dataset.ap,'aprovar'));
+  app.querySelectorAll('[data-aj]').forEach(b=>b.onclick=()=>go(b.dataset.aj,'ajustes'));
+}
+load();
+</script>
+</body>
+</html>

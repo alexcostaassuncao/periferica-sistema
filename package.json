@@ -11,7 +11,8 @@
     "build": "node scripts/db-migrate.mjs && next build",
     "start": "next start",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db-migrate.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ekyte:import": "node --env-file-if-exists=.env.local scripts/db-migrate.mjs && node --env-file-if-exists=.env.local scripts/import-ekyte.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",

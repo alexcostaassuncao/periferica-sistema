@@ -214,8 +214,8 @@
   PF.kanban=function(root,onMove){
     let dragged=null;
     root.querySelectorAll('.kcard').forEach(c=>{
-      c.draggable=true;
-      c.ondragstart=()=>{dragged=c;c.classList.add('dragging');};
+      c.draggable=c.dataset.locked!=='true';
+      c.ondragstart=()=>{if(c.dataset.locked==='true')return;dragged=c;c.classList.add('dragging');};
       c.ondragend=()=>{c.classList.remove('dragging');dragged=null;};
     });
     root.querySelectorAll('.col').forEach(col=>{

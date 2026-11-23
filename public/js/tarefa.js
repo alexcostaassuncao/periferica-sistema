@@ -4,10 +4,10 @@
    PF.upload(file,purpose)              envia para o Cloudinary (ou embute imagem pequena, se não houver) */
 (function(){
   const esc=PF.esc;
-  const STAGES=[['gestao','Gestão'],['copy','Copy'],['design','Design'],['revisao','Revisão'],['cliente','Cliente'],['aprovada','Aprovada']];
-  const SCOLOR={gestao:'gray',copy:'purple',design:'blue',revisao:'yellow',cliente:'orange',aprovada:'green'};
+  const STAGES=[['gestao','Gestão'],['copy','Copy'],['video','Videomaker'],['design','Design'],['revisao','Revisão'],['cliente','Cliente'],['aprovada','Aprovada']];
+  const SCOLOR={gestao:'gray',copy:'purple',video:'pink',design:'blue',revisao:'yellow',cliente:'orange',aprovada:'green'};
   const CAT={social:'Social Media',campanha:'Campanha',video_organico:'Vídeo orgânico',video_campanha:'Vídeo de campanha'},FMT={feed:'Feed',stories:'Stories',reels:'Reels'},CH={instagram:'Instagram',facebook:'Facebook',ambos:'Instagram + Facebook'};
-  const ACT={criada:'Criou a tarefa',enviada:'Enviou',ajuste:'Pediu ajuste',versao:'Anexou entrega',liberada:'Liberou para o cliente',aprovada:'Aprovada',cliente_ajustes:'Cliente pediu ajustes'};
+  const ACT={criada:'Criou a tarefa',enviada:'Enviou',ajuste:'Pediu ajuste',versao:'Anexou entrega',liberada:'Liberou para o cliente',aprovada:'Aprovada',cliente_ajustes:'Cliente pediu ajustes',importada:'Importada do eKyte'};
   PF.taskStage=(s)=>PF.badge((STAGES.find(x=>x[0]===s)||[s,s])[1],SCOLOR[s]||'gray');
   PF.taskMeta={CAT,FMT,CH,STAGES};
   let people=null;const getPeople=async()=>people||(people=(await PF.api('/api/people')).people);
@@ -103,7 +103,7 @@
           <button class="icon-btn" data-close title="Fechar"><i data-lucide="x"></i></button></div>
         <div class="tk-steps">${STAGES.map(([k,l],i)=>`<span class="${i<idx?'done':i===idx?'now':''}">${l}</span>`).join('')}</div>
         ${t.client_status==='ajustes'&&t.stage==='revisao'?`<div class="tk-alert cli"><b>O cliente pediu ajustes:</b> ${esc(t.client_feedback)}</div>`:''}
-        ${lastAdj&&['copy','design'].includes(t.stage)&&lastAdj.to_stage===t.stage?`<div class="tk-alert adj"><b>Ajuste pedido por ${esc(lastAdj.by_name)}:</b> ${esc(lastAdj.reason)}</div>`:''}
+        ${lastAdj&&['copy','video','design'].includes(t.stage)&&lastAdj.to_stage===t.stage?`<div class="tk-alert adj"><b>Ajuste pedido por ${esc(lastAdj.by_name)}:</b> ${esc(lastAdj.reason)}</div>`:''}
         <div class="tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}</div>
         <div id="tkPane"></div>
         <div class="tk-foot" id="tkFoot"></div>`;
@@ -128,8 +128,13 @@
         ${fld('title','Título',t.title,{ro,full:true})}
         ${fld('description','Descrição',t.description,{ro,full:true,rows:80})}
         ${fld('responsible_id','Responsável (Gestão)',t.responsible_id,{ro,list:[['','—'],...ps.map(x=>[x.id,x.name])]})}
-        ${fld('due_date','Prazo',t.due_date,{ro,type:'date'})}
+        ${fld('objective','Objetivo',t.objective,{ro,full:true,rows:50})}
+        ${fld('due_date','Prazo de execução',t.due_date,{ro,type:'date'})}
+        ${fld('publish_date','Data prevista de publicação',t.publish_date,{ro,type:'date'})}
         ${fld('category','Categoria',t.category,{ro,list:Object.entries(CAT)})}
+        ${String(t.category).startsWith('video')?`${fld('needs_capture','Precisa de captação?',String(t.needs_capture||0),{ro,list:[['0','Não'],['1','Sim']]})}
+        ${fld('capture_id','Responsável pela captação',t.capture_id,{ro,list:[['','—'],...ps.map(x=>[x.id,x.name])]})}
+        ${fld('editor_id','Responsável pela edição',t.editor_id,{ro,list:[['','—'],...ps.map(x=>[x.id,x.name])]})}`:''}
         ${fld('format','Formato',t.format,{ro,list:Object.entries(FMT)})}
         ${fld('channels','Canais',t.channels,{ro,list:Object.entries(CH)})}
         <label class="field"><span>Reunião de origem</span><div class="tk-ro">${D.meeting?esc(D.meeting.title)+' · '+D.meeting.date.split('-').reverse().join('/'):'—'}</div></label>
@@ -156,6 +161,7 @@
     function conteudo(p){
       const t=T(),ed=C().editCopy;
       p.innerHTML=`<div class="stack">
+        ${String(t.category).startsWith('video')?`<div class="field"><span>Roteiro do vídeo</span>${ed?`<textarea class="input" data-f="script" style="min-height:140px" placeholder="Cenas, falas, tomadas e o que precisa ser captado">${esc(t.script||'')}</textarea>`:`<div class="tk-ro">${esc(t.script||'—')}</div>`}</div>`:''}
         <div class="field"><span>Texto que vai na arte</span>${ed?`<textarea class="input" data-f="art_text" style="min-height:100px" placeholder="Título, frases e chamadas que o Design vai colocar na peça">${esc(t.art_text)}</textarea>`:`<div class="tk-ro">${esc(t.art_text||'—')}</div>`}</div>
         <div class="field"><span>Legenda ${t.format==='stories'?'(opcional em Stories)':''}</span>${ed?`<textarea class="input" data-f="caption" maxlength="2200" style="min-height:140px" placeholder="Legenda do post, com hashtags">${esc(t.caption)}</textarea><small class="muted tiny" id="capN">${t.caption.length}/2200</small>`:`<div class="tk-ro">${esc(t.caption||'—')}</div>`}</div>
       </div>${ed?'':'<p class="muted tiny" style="margin-top:8px">O Copy edita estes campos na etapa de Copy.</p>'}`;
@@ -204,9 +210,11 @@
       f.innerHTML=[c.delete&&b('tkDel','Apagar','btn-ghost','trash-2'),
         (c.editBase||c.editCopy)&&b('tkSave','Salvar','btn-ghost','save'),
         c.sendCopy&&b('tkCopy','Enviar para Copy','btn-primary','send'),
-        c.sendDesign&&b('tkDesign','Enviar para Design','btn-primary','send'),
+        c.sendVideo&&String(t.category).startsWith('video')&&b('tkVideo','Enviar para Videomaker','btn-primary','send'),
+        c.sendDesign&&b('tkDesign','Enviar para Design',t.stage==='video'?'btn-ghost':'btn-primary','send'),
         c.sendReview&&b('tkReview','Enviar para Revisão','btn-primary','send'),
         c.adjust&&b('tkAdj','Solicitar ajustes','btn-outline','rotate-ccw'),
+        c.share&&t.plan_month&&t.stage==='revisao'&&b('tkGrade','Liberar na grade do mês','btn-primary','calendar-check'),
         c.share&&b('tkShare',t.stage==='cliente'?'Reenviar ao cliente':'Liberar para o cliente','btn-primary','share-2'),
         c.clientResult&&b('tkRes','Registrar retorno do cliente','btn-ghost','message-square')].filter(Boolean).join('')||'<span class="muted small">Você só pode acompanhar esta tarefa nesta etapa.</span>';
       const on=(i,fn)=>{const e=f.querySelector('#'+i);if(e)e.onclick=fn;};
@@ -216,10 +224,11 @@
           <form class="stack" id="f"><label class="field"><span>Quem recebe</span><select class="select-in" name="assignee_id"><option value="">Sugestão automática (equipe do cliente)</option>${ppl.map(x=>`<option value="${x.id}">${esc(x.name)}${x.role?' · '+esc(x.role):''}</option>`).join('')}</select></label>
           <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Enviar</button></div></form>`);
         m2.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();const ok=await act({action:'send',to,assignee_id:e.target.elements.assignee_id.value},`Tarefa enviada para ${label}.`);if(ok)m2.close();};};
-      on('tkCopy',()=>send('copy','Copy'));on('tkDesign',()=>send('design','Design'));on('tkReview',()=>send('revisao','Revisão'));
+      on('tkGrade',async()=>{if(!await save(true))return;act({action:'to_client'},'Liberada na grade do mês: o cliente aprova pelo link da grade.');});
+      on('tkCopy',()=>send('copy','Copy'));on('tkVideo',()=>send('video','Videomaker'));on('tkDesign',()=>send('design','Design'));on('tkReview',()=>send('revisao','Revisão'));
       on('tkDel',async()=>{if(!confirm('Apagar esta tarefa?'))return;try{await PF.api('/api/tasks',{method:'DELETE',body:{id}});PF.toast('Tarefa apagada.','ok');onChange&&onChange();m.close();}catch(e){PF.toast(e.message,'err');}});
       on('tkAdj',()=>{const m2=PF.modal(`<div class="modal-head"><h3>Solicitar ajustes</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
-          <form class="stack" id="f"><div class="field"><span>O que precisa ser corrigido?</span><div class="toggle" style="align-self:flex-start"><button type="button" data-tg="design" class="on">Arte (Design)</button><button type="button" data-tg="copy">Texto / legenda (Copy)</button></div></div>
+          <form class="stack" id="f"><div class="field"><span>O que precisa ser corrigido?</span><div class="toggle" style="align-self:flex-start"><button type="button" data-tg="design" class="on">Arte (Design)</button>${String(t.category).startsWith('video')?'<button type="button" data-tg="video">Vídeo (Videomaker)</button>':''}<button type="button" data-tg="copy">Texto / legenda (Copy)</button></div></div>
           <label class="field"><span>Motivo (obrigatório)</span><textarea class="input" name="reason" required minlength="5" placeholder="Ex.: aumentar o logo e trocar a foto do fundo"></textarea></label>
           <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Devolver</button></div></form>`);
         let target='design';m2.el.querySelectorAll('[data-tg]').forEach(x=>x.onclick=()=>{target=x.dataset.tg;m2.el.querySelectorAll('[data-tg]').forEach(y=>y.classList.toggle('on',y===x));});

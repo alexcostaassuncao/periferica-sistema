@@ -43,8 +43,37 @@ const bar=p=>`<div class="progress"><div class="bar"><span data-w="${p}" style="
 
 // ---------- LISTA ----------
 async function lista(){
-  let D={onboardings:[],waiting:[]},q='',tab='andamento';
-  try{D=await PF.api('/api/onboarding');}catch(e){PF.toast(e.message,'err');}
+  let D={onboardings:[],waiting:[]},q='',tab='andamento',S=[],line=sessionStorage.getItem('pf-sv-line')||'gestao',ppl=[];
+  try{[D,S,ppl]=await Promise.all([PF.api('/api/onboarding'),PF.api('/api/services').then(r=>r.services).catch(()=>[]),PF.api('/api/people').then(r=>r.people).catch(()=>[])]);}catch(e){PF.toast(e.message,'err');}
+  // Novos serviços (contrato assinado → fila da área). O gerente assume, define os responsáveis e inicia.
+  const services=()=>{
+    const L=S.filter(s=>s.line===line&&s.status!=='concluido'),wait=L.filter(s=>s.status==='aguardando');
+    const n=k=>S.filter(s=>s.line===k&&s.status==='aguardando').length;
+    return `<div class="card mb"><div class="card-head"><div><h2>Novos serviços contratados</h2><p>Cada contrato assinado entra aqui na área certa. O gerente assume, define os responsáveis e dá início.</p></div>
+      <div class="toggle">${[['gestao','Gestão'],['projetos','Projetos']].map(([k,l])=>`<button data-line="${k}" class="${line===k?'on':''}">${l}${n(k)?` <span class="count">${n(k)}</span>`:''}</button>`).join('')}</div></div>
+      ${L.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Serviço</th><th>Assinado em</th><th>Status</th><th>Gerente</th><th></th></tr></thead><tbody>
+      ${L.map(s=>`<tr><td><a class="who" href="clientes.html?id=${s.client_id}">${PF.chip(s.client_name)}<div><b>${esc(s.client_name)}</b><small>${esc(s.segment||'—')}</small></div></a></td><td>${esc(s.name)}${s.contract_value?`<div class="muted tiny">${esc(s.contract_value)}</div>`:''}</td>
+        <td>${s.signed_at?new Date(s.signed_at).toLocaleDateString('pt-BR'):'—'}</td><td>${s.status==='aguardando'?PF.badge('Aguardando gerente','yellow'):PF.badge('Em andamento','blue')}</td><td>${esc(s.manager_name||'—')}</td>
+        <td class="right">${s.status==='aguardando'?`<button class="btn btn-primary btn-sm" data-assume="${s.id}"><i data-lucide="hand"></i>Assumir e iniciar</button>`
+          :s.line==='gestao'&&s.onboarding_id?`<a class="btn btn-ghost btn-sm" href="onboarding.html?id=${s.onboarding_id}">Abrir onboarding</a>`
+          :`<button class="btn btn-ghost btn-sm" data-finish="${s.id}"><i data-lucide="check"></i>Concluir</button>`}</td></tr>`).join('')}</tbody></table></div>`
+      :`<div class="empty"><i data-lucide="check-circle"></i><div>Nenhum serviço de ${line==='gestao'?'Gestão':'Projetos'} esperando. ${wait.length?'':'Eles aparecem aqui quando o contrato é assinado.'}</div></div>`}</div>`;
+  };
+  function assume(s){
+    const opt=sel=>[['','—'],...ppl.map(x=>[x.id,x.name])].map(([k,l])=>`<option value="${esc(k)}" ${k===sel?'selected':''}>${esc(l)}</option>`).join('');
+    const roles=s.line==='gestao'?[['consultora','Consultora'],['copy','Copy'],['design','Design'],['trafego','Tráfego']]:[['design','Design']];
+    const m=PF.modal(`<div class="modal-head"><div><h3>Assumir serviço</h3><p class="muted small">${esc(s.client_name)} · ${esc(s.name)}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+      <form class="stack" id="as"><label class="field"><span>Gerente responsável</span><select class="select-in" name="manager_id">${opt(PF.user.id)}</select></label>
+      ${roles.map(([k,l])=>`<label class="field"><span>${l}</span><select class="select-in" name="t_${k}">${opt('')}</select></label>`).join('')}
+      <label class="field"><span>Observações</span><textarea class="input" name="notes" placeholder="Prazos combinados, prioridades, combinados da venda"></textarea></label>
+      <p class="muted tiny">${s.line==='gestao'?'Os responsáveis viram a equipe do cliente e o onboarding de Gestão começa em seguida (10 dias úteis).':'Os responsáveis ficam registrados no serviço e no histórico do cliente.'}</p>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Assumir e iniciar</button></div></form>`);
+    m.el.querySelector('#as').onsubmit=async e=>{e.preventDefault();const F=e.target.elements;
+      const team=Object.fromEntries(roles.map(([k])=>[k,F['t_'+k].value]));
+      try{await PF.api('/api/services',{method:'PATCH',body:{id:s.id,action:'assume',manager_id:F.manager_id.value,team,notes:F.notes.value}});
+        if(s.line==='gestao'&&!s.phase){const r=await PF.api('/api/onboarding',{method:'POST',body:{client_id:s.client_id}});location.href='onboarding.html?id='+r.id;return;}
+        m.close();PF.toast('Serviço assumido.','ok');lista();}catch(x){PF.toast(x.message,'err');}};
+  }
   const draw=()=>{
     const and=D.onboardings.filter(o=>o.status==='andamento'),conc=D.onboardings.filter(o=>o.status==='concluido');
     const atrasados=and.filter(o=>o.due_at<Date.now());
@@ -58,6 +87,7 @@ async function lista(){
       ${PF.kpi({icon:'alarm-clock',color:'pink',value:String(atrasados.length),label:'Passaram do prazo'})}
       ${PF.kpi({icon:'clock',color:'green',value:media===null?'—':media+' dias úteis',label:'Média de ativação',click:'concluido',active:tab==='concluido'})}
     </section>
+    ${services()}
     <div class="note info mb"><i data-lucide="info"></i><div>O <b>progresso</b> é a quantidade de itens do checklist já marcados, dividida pelo total. É a mesma conta em todas as telas.</div></div>
     <div class="card">
       <div class="tabs">${[['andamento','Em andamento',and.length],['aguardando','Aguardando início',D.waiting.length],['concluido','Enviados para Gestão',conc.length]].map(([k,l,n])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${n}</span></button>`).join('')}</div>
@@ -75,6 +105,10 @@ async function lista(){
     </div>`;
     PF.icons();PF.animateBars();
     content.querySelectorAll('[data-t],[data-kpi]').forEach(b=>b.onclick=()=>{tab=b.dataset.t||b.dataset.kpi;draw();});
+    content.querySelectorAll('[data-line]').forEach(b=>b.onclick=()=>{line=b.dataset.line;sessionStorage.setItem('pf-sv-line',line);draw();});
+    content.querySelectorAll('[data-assume]').forEach(b=>b.onclick=()=>assume(S.find(s=>s.id===b.dataset.assume)));
+    content.querySelectorAll('[data-finish]').forEach(b=>b.onclick=async()=>{if(!confirm('Marcar este serviço como concluído?'))return;
+      try{await PF.api('/api/services',{method:'PATCH',body:{id:b.dataset.finish,action:'finish'}});PF.toast('Serviço concluído.','ok');lista();}catch(e){PF.toast(e.message,'err');}});
     content.querySelectorAll('[data-start]').forEach(b=>b.onclick=async()=>{
       if(!confirm(`Iniciar o onboarding de ${b.dataset.name}? O prazo é de 10 dias úteis a partir de hoje.`))return;
       try{const r=await PF.api('/api/onboarding',{method:'POST',body:{client_id:b.dataset.start}});location.href='onboarding.html?id='+r.id;}catch(e){PF.toast(e.message,'err');}

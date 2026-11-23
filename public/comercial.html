@@ -36,6 +36,27 @@
   .report-table{width:100%;border-collapse:collapse;font-size:12.5px}
   .report-table th,.report-table td{padding:9px 8px;text-align:left;border-bottom:1px solid var(--line)}
   .report-table th{color:var(--muted);font-weight:600}
+  .crm-dashboard{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  .crm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .crm-kpi{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:80px;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:11px;color:var(--text);cursor:pointer}
+  .crm-kpi:hover,.crm-kpi.on{border-color:var(--orange);background:rgba(255,88,11,.08)}
+  .crm-kpi small{color:var(--muted);font-size:11px}
+  .crm-kpi b{font-size:21px}
+  .crm-kpi .amount{font-size:13px;color:var(--soft)}
+  .crm-dash-row{display:grid;grid-template-columns:1.2fr 1fr;gap:12px}
+  .crm-products{padding:12px}
+  .crm-products .report-table td:last-child,.crm-products .report-table th:last-child{text-align:right}
+  .crm-filters{display:grid;grid-template-columns:repeat(8,minmax(120px,1fr));gap:8px;margin:12px 0}
+  .crm-filters .field{min-width:0}
+  .crm-filter-dates{display:contents}
+  .crm-product-row{display:grid;grid-template-columns:140px minmax(160px,1fr) 150px auto;align-items:end;gap:8px}
+  .crm-product-row .field{min-width:0}
+  .crm-contract-list{display:flex;flex-direction:column;gap:8px}
+  .crm-contract-item{padding:10px;border:1px solid var(--line);border-radius:9px}
+  .crm-contract-item .top{display:flex;justify-content:space-between;gap:8px}
+  .crm-alert{border-color:rgba(246,181,30,.4);background:rgba(246,181,30,.08)}
+  @media(max-width:1000px){.crm-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.crm-filters{grid-template-columns:repeat(4,minmax(120px,1fr))}}
+  @media(max-width:650px){.crm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-dash-row{grid-template-columns:1fr}.crm-filters{grid-template-columns:repeat(2,minmax(120px,1fr))}.crm-product-row{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -43,52 +64,147 @@
 const content=PF.shell({title:'Comercial',subtitle:'Gestão de leads e oportunidades',crumbs:[['Clientes'],['Comercial']],search:'Buscar lead, empresa ou contato...',
   actions:`<button class="btn btn-ghost" id="leadReports"><i data-lucide="chart-no-axes-column"></i>Relatórios</button><button class="btn btn-ghost" id="leadReferences"><i data-lucide="tag"></i>Códigos</button><button class="btn btn-primary" id="newLead"><i data-lucide="plus"></i>Novo lead</button>`});
 
-const STAGES=[['novo','Novo lead','var(--blue)'],['contato','Em contato','var(--orange)'],['reuniao','Reunião','var(--purple)'],['proposta','Proposta enviada','var(--yellow)'],['negociacao','Negociação','var(--pink)'],['fechado','Fechado','var(--green)']];
+const STAGES=[['novo','Novo lead','var(--blue)'],['contato','Em contato','var(--orange)'],['reuniao','Reunião','var(--purple)'],['proposta','Proposta enviada','var(--yellow)'],['aguardando_contrato','Aguardando contrato','var(--pink)'],['fechado','Fechado','var(--green)'],['venda_perdida','Venda perdida','var(--muted)']];
 const SOURCES=['Meta Ads','Google Ads','Prospecção','WhatsApp','Site','Indicação','Instagram','Evento'];
 const SRC={'Meta Ads':'pink','Google Ads':'yellow','Prospecção':'blue','WhatsApp':'green','Site':'orange','Indicação':'purple','Instagram':'pink','Evento':'gray'};
-const CONTRACT={elab:['Contrato em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Contrato assinado','green']};
+const CONTRACT={dados:['Aguardando dados','orange'],elab:['Em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Assinado','green'],canc:['Cancelado / Não concluído','gray']};
+const CATEGORY_LABEL={gestao:'Gestão',projeto:'Projeto',outro:'Outro'};
 const WAIT=['Sem resposta (com data de retorno)','Retomada futura (ex.: 3 meses)','Aguardando definição do cliente'];
 const ARCH=['Não teve interesse','Desqualificado (fora do perfil)','Não respondeu (após tentativas)','Fechou com outra empresa'];
 const CHANNELS=[['manual','Cadastro manual'],['form','Formulário do site'],['whatsapp','WhatsApp manual'],['meta_form','Formulário Meta'],['whatsapp_api','WhatsApp integrado'],['integration','Outra integração']];
-let leads=[],owners=[],tab='andamento',filters={src:'',seg:'',owner:''},q='';
+let leads=[],owners=[],tab='andamento',filters={src:'',seg:'',owner:'',month:'',year:'',from:'',to:'',product:'',stage:''},q='';
+let canViewValues=true,dashboardData=null,dashboardIds=null,dashboardMetric='';
 const ownerName=id=>owners.find(o=>o.id===id)?.name||'';
 const wa=p=>'https://wa.me/55'+String(p||'').replace(/\D/g,'');
 const dateInput=ms=>{if(!ms)return '';const date=new Date(ms);return new Date(ms-date.getTimezoneOffset()*60000).toISOString().slice(0,16);};
+const stageLabel=stage=>STAGES.find(s=>s[0]===stage)?.[1]||(stage==='negociacao'?'Negociação':stage);
+const brlCents=cents=>PF.brl((Number(cents)||0)/100);
+const productTotal=products=>(products||[]).reduce((sum,item)=>sum+Number(item.amount_cents||0),0);
+const contractLabel=status=>CONTRACT[status]?.[0]||status;
+const contractAge=c=>Math.floor((Date.now()-Number(c.status==='aguard'?c.sent_at||c.created_at:c.created_at||0))/86400000);
+const pendingContract=c=>['dados','aguard'].includes(c.status)&&contractAge(c)>=3;
 
 async function load(){
-  try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;}catch(e){PF.toast(e.message,'err');}
+  try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;canViewValues=d.canViewValues!==false;}catch(e){PF.toast(e.message,'err');}
+  await loadDashboard();
   render();
 }
+function dateRange(){
+  const y=filters.year?Number(filters.year):filters.month?new Date().getFullYear():null,m=filters.month?Number(filters.month):null;
+  const monthStart=y?(m?new Date(y,m-1,1):new Date(y,0,1)):null;
+  const monthEnd=y?(m?new Date(y,m,0):new Date(y,11,31)):null;
+  const iso=d=>d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'';
+  const froms=[filters.from,iso(monthStart)].filter(Boolean).sort(),tos=[filters.to,iso(monthEnd)].filter(Boolean).sort();
+  return {from:froms.length?froms[froms.length-1]:'',to:tos.length?tos[0]:''};
+}
+function dashboardParams(){
+  const p=new URLSearchParams(),range=dateRange();
+  p.set('tz',String(new Date().getTimezoneOffset()));
+  for(const [key,value] of Object.entries({from:range.from,to:range.to,source:filters.src,segment:filters.seg,owner:filters.owner,
+    product:filters.product,stage:filters.stage,q}))if(value)p.set(key,value);
+  return p;
+}
+async function loadDashboard(){
+  try{dashboardData=(await PF.api('/api/leads/reports?'+dashboardParams().toString())).dashboard;}
+  catch(e){dashboardData=null;PF.toast(e.message,'err');}
+}
+async function refreshFilters(){dashboardIds=null;dashboardMetric='';await loadDashboard();render();}
 async function patch(body,msg){
   try{await PF.api('/api/leads',{method:'PATCH',body});if(msg)PF.toast(msg,'ok');}catch(e){PF.toast(e.message,'err');}
   await load();
 }
 
+function productsLabel(l){
+  const products=l.products||[];
+  if(!products.length)return '';
+  const names=products.slice(0,2).map(p=>`${p.name}${canViewValues?` (${brlCents(p.amount_cents)})`:''}`);
+  if(products.length>2)names.push(`+${products.length-2}`);
+  return names.join(' · ');
+}
+function canGenerate(l){
+  if(['fechado','venda_perdida'].includes(l.stage))return false;
+  const kinds=new Set((l.contracts||[]).filter(c=>c.status!=='canc').map(c=>c.kind));
+  return !kinds.has('Gestão')||!kinds.has('Projetos');
+}
+function contractsSummary(l){
+  const contracts=l.contracts||[];
+  if(!contracts.length)return '';
+  const shortStatus={dados:'Aguard. dados',elab:'Em elaboração',aguard:'Aguard. assinatura',assin:'Assinado',canc:'Não concluído'};
+  const labels=contracts.slice(0,2).map(c=>`${c.kind==='Gestão'?'Gestão':'Projeto'}: ${shortStatus[c.status]||c.status}`);
+  if(contracts.length>2)labels.push(`+${contracts.length-2}`);
+  return labels.join(' · ');
+}
+function dashboardHTML(visible){
+  const data=dashboardData;
+  if(!data)return '';
+  const metrics=[
+    ['leadsReceived','Leads recebidos'],['negotiation','Em negociação'],['proposals','Propostas enviadas'],
+    ['accepted','Aceites comerciais'],['awaitingContracts','Aguardando contrato'],['lost','Vendas perdidas'],['closed','Vendas fechadas'],
+  ];
+  const valueFor={negotiation:data.negotiationValueCents,proposals:data.proposalValueCents,closed:data.closedValueCents};
+  const cards=metrics.map(([key,label])=>`<button class="crm-kpi ${dashboardMetric===key?'on':''}" data-kpi="${key}">
+      <small>${label}</small><b>${data[key]?.count||0}</b>${canViewValues&&valueFor[key]!==undefined?`<span class="amount">${brlCents(valueFor[key])}</span>`:''}
+    </button>`).join('')+`<button class="crm-kpi ${dashboardMetric==='conversionRate'?'on':''}" data-kpi="conversionRate">
+      <small>Taxa de conversão</small><b>${Math.round((data.conversionRate||0)*100)}%</b><span class="amount">Fechados / leads recebidos</span></button>`;
+  const alerts=visible.flatMap(lead=>(lead.contracts||[]).filter(pendingContract).map(contract=>({lead,contract,days:contractAge(contract)})));
+  return `<section class="crm-dashboard">
+    <div class="crm-kpis">${cards}</div>
+    ${dashboardMetric?`<button class="btn btn-ghost btn-sm" data-clear-kpi>Limpar seleção do indicador</button>`:''}
+    ${alerts.length?`<div class="note crm-alert"><i data-lucide="bell-ring"></i><div><b>Contratos pendentes há 3 dias ou mais</b>
+      <div class="small">${alerts.map(({lead,contract,days})=>`<a class="link" href="#" data-open="${lead.id}">${PF.esc(lead.company)}</a> · ${PF.esc(contractLabel(contract.status))} há ${days} dias`).join(' · ')}</div></div></div>`:''}
+    <div class="crm-dash-row"><section class="card crm-products"><b>Oportunidades por produto / serviço</b>
+      <table class="report-table"><thead><tr><th>Produto / serviço</th><th>Oportunidades</th>${canViewValues?'<th>Valor envolvido</th>':''}</tr></thead><tbody>
+      ${data.byProduct.length?data.byProduct.map(item=>`<tr data-product-filter="${PF.esc(item.name)}" style="cursor:pointer"><td>${PF.esc(item.name)}</td><td>${item.opportunities}</td>${canViewValues?`<td>${brlCents(item.amount_cents)}</td>`:''}</tr>`).join(''):`<tr><td colspan="${canViewValues?3:2}">Sem produtos neste filtro.</td></tr>`}
+      </tbody></table></section>
+      <section class="card crm-products"><b>Datas consideradas</b><p class="muted small">Leads recebidos: entrada · propostas: envio/renegociação · aceites: geração do primeiro contrato · fechamentos: assinatura de todos os contratos obrigatórios.</p>
+        <p class="muted small">Aguardando contrato: ${data.awaitingContracts.count} · Venda perdida: ${data.lost.count}</p></section></div>
+  </section>`;
+}
+
 function card(l){
-  const c=CONTRACT[l.contract_status];
-  return `<div class="kcard" data-id="${l.id}">
+  const total=productTotal(l.products),summary=productsLabel(l),contractSummary=contractsSummary(l);
+  const alerts=(l.contracts||[]).filter(pendingContract);
+  return `<div class="kcard" ${l.stage==='fechado'?'data-locked="true" ':''}data-id="${l.id}">
     <div class="top"><div><b>${PF.esc(l.company)}</b><small>${PF.esc(l.segment||'—')}</small></div><button class="icon-btn" data-open="${l.id}" aria-label="Abrir"><i data-lucide="ellipsis-vertical"></i></button></div>
     ${l.source?`<span class="badge b-${SRC[l.source]||'gray'} src">${PF.esc(l.source)}</span>`:''}
     ${l.contact_name?`<div class="contact"><i data-lucide="user"></i>${PF.esc(l.contact_name)}</div>`:''}
     <div class="acts">${l.phone?`<a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i>WhatsApp</a><a class="icon-btn" href="tel:${l.phone.replace(/\D/g,'')}" aria-label="Ligar"><i data-lucide="phone"></i></a>`:''}
       ${l.email?`<a class="icon-btn" href="mailto:${PF.esc(l.email)}" aria-label="Email"><i data-lucide="mail"></i></a>`:''}</div>
-    ${l.stage==='fechado'?(c?`<a href="contratos.html" class="badge b-${c[1]}" style="align-self:flex-start"><i data-lucide="file-text" style="width:13px"></i>${c[0]}</a>`
-      :`<button class="btn btn-primary btn-sm gen" data-gen="${l.id}"><i data-lucide="file-plus"></i>Gerar contrato</button>`):''}
+    ${summary?`<div class="small"><b>${PF.esc(summary)}</b>${canViewValues?`<div class="muted">Total: ${brlCents(total)}</div>`:''}</div>`:''}
+    ${l.stage==='venda_perdida'&&l.loss_reason?`<div class="muted small"><b>Motivo:</b> ${PF.esc(l.loss_reason)}</div>`:''}
+    ${contractSummary?`<a href="contratos.html" class="badge ${alerts.length?'b-yellow':'b-blue'}" style="align-self:flex-start" title="${PF.esc(contractSummary)}"><i data-lucide="file-text" style="width:13px"></i>${PF.esc(contractSummary)}${alerts.length?' · alerta':''}</a>`:''}
+    ${canGenerate(l)?`<button class="btn btn-primary btn-sm gen" data-gen="${l.id}"><i data-lucide="file-plus"></i>Gerar contrato</button>`
+      :l.stage==='fechado'?'<span class="badge b-green">Contrato assinado</span>':''}
     <div class="owner">${l.owner_id?PF.avatar(ownerName(l.owner_id))+PF.esc(ownerName(l.owner_id)):'<span class="avatar sm" style="background:#2a313c"><i data-lucide="user" style="width:13px"></i></span><span class="muted">Sem responsável</span>'}</div>
   </div>`;
 }
 
 function render(){
   const by=s=>leads.filter(l=>l.situation===s);
-  const match=l=>(!filters.src||l.source===filters.src)&&(!filters.seg||l.segment===filters.seg)&&(!filters.owner||l.owner_id===filters.owner)&&(!q||(l.company+' '+l.contact_name+' '+l.email+' '+l.phone).toLowerCase().includes(q));
-  const active=by('andamento').filter(match);
+  const range=dateRange(),fromAt=range.from?new Date(range.from+'T00:00').getTime():null,toAt=range.to?new Date(range.to+'T23:59:59.999').getTime():null;
+  const eventDate=l=>Number(l.stage==='proposta'?l.proposal_sent_at:l.stage==='aguardando_contrato'?l.accepted_at:l.stage==='fechado'?l.signed_at:l.stage==='venda_perdida'?l.lost_at:l.created_at)||Number(l.created_at);
+  const match=l=>dashboardIds?dashboardIds.has(l.id):
+    (!filters.src||l.source===filters.src)&&(!filters.seg||l.segment===filters.seg)&&(!filters.owner||l.owner_id===filters.owner)&&
+    (!filters.product||(l.products||[]).some(p=>p.name===filters.product))&&(!filters.stage||l.stage===filters.stage)&&
+    (!q||(l.company+' '+l.contact_name+' '+l.email+' '+l.phone).toLowerCase().includes(q))&&
+    (fromAt===null||eventDate(l)>=fromAt)&&(toAt===null||eventDate(l)<=toAt);
+  const active=by('andamento').filter(match),productOptions=[...new Set(leads.flatMap(l=>(l.products||[]).map(p=>p.name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const currentYear=new Date().getFullYear(),years=[...new Set([currentYear,...leads.map(l=>new Date(Number(l.created_at)).getFullYear())])].sort((a,b)=>b-a);
+  const months=[['1','Janeiro'],['2','Fevereiro'],['3','Março'],['4','Abril'],['5','Maio'],['6','Junho'],['7','Julho'],['8','Agosto'],['9','Setembro'],['10','Outubro'],['11','Novembro'],['12','Dezembro']];
   content.innerHTML=`
-  <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).length}</span></button>`).join('')}</div>
+  ${dashboardHTML(active)}
+  <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).filter(match).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
-  <div class="filters">
+  <div class="crm-filters">
     ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
     ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.segment).filter(Boolean))].map(s=>[s,s])])}
     ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
+    ${PF.select('fMonth','Mês',[['','Mês: todos'],...months])}
+    ${PF.select('fYear','Ano',[['','Ano: todos'],...years.map(year=>[String(year),String(year)])])}
+    <label class="field"><span>De</span><input class="input" type="date" id="fFrom" value="${filters.from}"></label>
+    <label class="field"><span>Até</span><input class="input" type="date" id="fTo" value="${filters.to}"></label>
+    ${PF.select('fProduct','Produto / serviço',[['','Produto: todos'],...productOptions.map(name=>[name,name])])}
+    ${PF.select('fStage','Etapa',[['','Etapa: todas'],...STAGES.map(([key,label])=>[key,label])])}
   </div>
   <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
   :`<div class="card mb">${by(tab).filter(match).length?`<table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th>${tab==='espera'?'<th>Retomar em</th>':''}<th>Responsável</th><th></th></tr></thead><tbody>
@@ -100,16 +216,36 @@ function render(){
       <ul>${WAIT.map(t=>`<li><i data-lucide="clock" style="color:var(--yellow)"></i>${t}</li>`).join('')}</ul></div>
     <div class="card t-arch"><div class="row"><div class="ico md c-pink round"><i data-lucide="mail-x"></i></div><div><b>Arquivados</b><p class="muted small">Leads encerrados, com o motivo registrado e histórico salvo.</p></div></div>
       <ul>${ARCH.map(t=>`<li><i data-lucide="square-x" style="color:var(--pink)"></i>${t}</li>`).join('')}</ul></div>
-    <div class="card t-hist"><div class="row"><div class="ico md c-green round"><i data-lucide="file-text"></i></div><div><b>Do fechamento ao cliente</b><p class="muted small">Em <b>Fechado</b>, clique em <b>Gerar contrato</b>. Quando o contrato for assinado, o cliente é criado sozinho com os dados deste cadastro.</p></div></div>
+    <div class="card t-hist"><div class="row"><div class="ico md c-green round"><i data-lucide="file-text"></i></div><div><b>Da oportunidade ao cliente</b><p class="muted small">Quando o cliente aceitar, clique em <b>Gerar contrato</b>. A oportunidade vai para <b>Aguardando contrato</b>; só a confirmação da assinatura fecha a oportunidade e cria o cliente.</p></div></div>
       <a class="btn btn-ghost" style="margin-top:auto" href="contratos.html"><i data-lucide="file-signature"></i>Ver contratos</a></div>
   </section>`;
   PF.icons();
   content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();});
+  content.querySelectorAll('[data-kpi]').forEach(button=>button.onclick=()=>{
+    const key=button.dataset.kpi;dashboardMetric=dashboardMetric===key?'':key;
+    const metricIds=dashboardMetric==='conversionRate'?dashboardData?.conversionRateIds:dashboardData?.[dashboardMetric]?.ids;
+    dashboardIds=dashboardMetric?new Set(metricIds||[]):null;render();
+  });
+  const clearKpi=content.querySelector('[data-clear-kpi]');
+  if(clearKpi)clearKpi.onclick=()=>{dashboardIds=null;dashboardMetric='';render();};
+  content.querySelectorAll('[data-product-filter]').forEach(row=>row.onclick=()=>{filters.product=row.dataset.productFilter;refreshFilters();});
+  content.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{e.preventDefault();openLead(leads.find(l=>l.id===b.dataset.open));});
   if(tab==='andamento'){
-    const bind=(id,key)=>{const s=content.querySelector('#'+id);s.value=filters[key];s.onchange=()=>{filters[key]=s.value;render();};};
-    bind('fSrc','src');bind('fSeg','seg');bind('fOwner','owner');
-    PF.kanban(content.querySelector('.kanban'),(id,col)=>{const l=leads.find(x=>x.id===id);if(l.stage===col)return;l.stage=col;patch({id,stage:col},`${l.company} → ${STAGES.find(s=>s[0]===col)[1]}`);});
-    content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openLead(leads.find(l=>l.id===b.dataset.open)));
+    const bindFilter=(id,key)=>{const s=content.querySelector('#'+id);s.value=filters[key];s.onchange=()=>{filters[key]=s.value;refreshFilters();};};
+    bindFilter('fSrc','src');bindFilter('fSeg','seg');bindFilter('fOwner','owner');bindFilter('fMonth','month');bindFilter('fYear','year');
+    bindFilter('fProduct','product');bindFilter('fStage','stage');
+    for(const [id,key] of [['fFrom','from'],['fTo','to']]){
+      const input=content.querySelector('#'+id);input.onchange=()=>{filters[key]=input.value;refreshFilters();};
+    }
+    PF.kanban(content.querySelector('.kanban'),(id,col)=>{
+      const l=leads.find(x=>x.id===id);if(!l||l.stage===col)return;
+      if(col==='fechado'){PF.toast('Fechado só é permitido após confirmar a assinatura do contrato.','err');return load();}
+      if(col==='aguardando_contrato'){PF.toast('Use Gerar contrato para mover a oportunidade para esta etapa.','err');return load();}
+      if(col==='venda_perdida'){markLost(l);return load();}
+      if(col==='proposta'){PF.toast('Abra a oportunidade para registrar produtos e valores da proposta.','err');openLead(l);return load();}
+      if(l.stage==='fechado'){PF.toast('Uma oportunidade fechada não pode ser movida manualmente.','err');return load();}
+      patch({id,stage:col},`${l.company} → ${stageLabel(col)}`);
+    });
     content.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>generate(leads.find(l=>l.id===b.dataset.gen)));
   }
   content.querySelectorAll('[data-react]').forEach(b=>b.onclick=()=>patch({id:b.dataset.react,situation:'andamento'},'Lead voltou para o funil.'));
@@ -172,17 +308,65 @@ function bindReference(form){
   input.addEventListener('blur',()=>resolveReference(form));
 }
 
+function markLost(l){
+  const m=PF.modal(`<div class="modal-head"><div><h3>Registrar venda perdida</h3><p class="muted small">${PF.esc(l.company)} · o motivo ficará no histórico da oportunidade.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <form class="stack" id="lossForm"><label class="field"><span>Motivo da perda</span><textarea class="input" name="loss_reason" maxlength="1000" required style="min-height:100px">${PF.esc(l.loss_reason||'')}</textarea></label>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Confirmar venda perdida</button></div></form>`);
+  m.el.querySelector('#lossForm').onsubmit=async e=>{
+    e.preventDefault();const loss_reason=String(new FormData(e.target).get('loss_reason')||'').trim();
+    if(!loss_reason)return PF.toast('Informe o motivo da perda.','err');
+    m.close();await patch({id:l.id,stage:'venda_perdida',loss_reason},'Venda perdida registrada.');
+  };
+}
+
+function productRow(product={}){
+  return `<div class="crm-product-row" data-product-row>
+    <label class="field"><span>Categoria</span><select class="select-in" data-product-category>${Object.entries(CATEGORY_LABEL).map(([key,label])=>`<option value="${key}" ${key===(product.category||'gestao')?'selected':''}>${label}</option>`).join('')}</select></label>
+    <label class="field"><span>Produto / serviço</span><input class="input" data-product-name maxlength="120" value="${PF.esc(product.name||'')}" placeholder="Ex.: Gestão de Marketing"></label>
+    ${canViewValues?`<label class="field"><span>Valor (R$)</span><input class="input" data-product-amount type="number" min="0" step="0.01" value="${(Number(product.amount_cents)||0)/100}"></label>`:''}
+    <button type="button" class="btn btn-ghost btn-sm" data-remove-product aria-label="Remover produto"><i data-lucide="trash-2"></i></button>
+  </div>`;
+}
+function productsEditor(l){
+  const products=l.products?.length?l.products:[{category:'gestao',name:l.interest||'',amount_cents:0}];
+  return `<fieldset class="card flat" id="productsEditor"><legend><b>Produtos e valores da proposta</b></legend>
+    <div class="crm-contract-list" id="productRows">${products.map(productRow).join('')}</div>
+    <div class="row wrap" style="justify-content:space-between;margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" id="addProduct"><i data-lucide="plus"></i>Adicionar produto</button>
+      ${canViewValues?`<b>Total da negociação: <span id="productTotal">${brlCents(productTotal(products))}</span></b>`:''}</div>
+    ${!canViewValues?'<p class="muted small">Valores ocultos para este perfil.</p>':''}</fieldset>`;
+}
+function readProducts(form){
+  return [...form.querySelectorAll('[data-product-row]')].map(row=>{
+    const raw=Number(row.querySelector('[data-product-amount]')?.value||0);
+    return {category:row.querySelector('[data-product-category]').value,name:row.querySelector('[data-product-name]').value.trim(),
+      amount_cents:Number.isFinite(raw)?Math.round(raw*100):0};
+  }).filter(product=>product.name);
+}
+function contractDetails(l){
+  const contracts=l.contracts||[];
+  if(!contracts.length)return '<p class="muted small">Nenhum contrato gerado para esta oportunidade.</p>';
+  return `<div class="crm-contract-list">${contracts.map(c=>{
+    const date=c.status==='assin'?c.signed_at:c.status==='aguard'?c.sent_at:c.created_at;
+    return `<article class="crm-contract-item ${pendingContract(c)?'crm-alert':''}"><div class="top"><b>${PF.esc(c.kind)} · ${PF.esc(c.model)}</b><span class="badge b-${CONTRACT[c.status]?.[1]||'gray'}">${PF.esc(contractLabel(c.status))}</span></div>
+      <div class="muted small">${c.required?'Contrato obrigatório':'Contrato substituído'}${date?` · ${new Date(date).toLocaleString('pt-BR')}`:''}${pendingContract(c)?` · pendente há ${contractAge(c)} dias`:''}</div>
+      ${canViewValues?`<div class="small">Valor: ${brlCents(c.amount_cents)}</div>`:''}</article>`;
+  }).join('')}</div>`;
+}
+
 function openLead(l){
   const c=CONTRACT[l.contract_status];
   const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(l.company)}</h3><p class="muted small">Data da conversão: ${new Date(l.conversion_at||l.created_at).toLocaleDateString('pt-BR')}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
     <form class="stack" id="f">
       ${fields(l)}
-      <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage">${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''}>${lb}</option>`).join('')}</select></label>
+      <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage" ${l.stage==='fechado'?'disabled':''}>${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''} ${k==='fechado'&&l.stage!=='fechado'?'disabled':''} ${k==='aguardando_contrato'&&l.stage!=='aguardando_contrato'?'disabled':''}>${lb}</option>`).join('')}</select></label>
+      ${productsEditor(l)}
+      <label class="field" id="lossReasonField" ${l.stage==='venda_perdida'?'':'hidden'}><span>Motivo da venda perdida</span><textarea class="input" name="loss_reason" maxlength="1000" ${l.stage==='venda_perdida'?'required':'disabled'} style="min-height:80px">${PF.esc(l.loss_reason||'')}</textarea></label>
       <label class="field"><span>Anotações (triagem, interações, combinados)</span><textarea class="input" name="notes" style="min-height:90px">${PF.esc(l.notes||'')}</textarea></label>
+      <section class="card flat"><b>Andamento dos contratos</b>${contractDetails(l)}</section>
       <div class="card flat" id="leadHistory"><span class="muted small">Carregando histórico...</span></div>
       ${c?`<a class="note info" href="contratos.html"><i data-lucide="file-text"></i><div>${c[0]}. <b>Ver em Contratos →</b></div></a>`:''}
       <div class="row wrap" style="gap:8px">
-        ${!c?`<button type="button" class="btn btn-primary btn-sm" id="gen"><i data-lucide="file-plus"></i>Gerar contrato</button>`:''}
+        ${canGenerate(l)?`<button type="button" class="btn btn-primary btn-sm" id="gen"><i data-lucide="file-plus"></i>Gerar contrato</button>`:''}
         <button type="button" class="btn btn-ghost btn-sm" id="wait"><i data-lucide="clock"></i>Colocar em espera</button>
         <button type="button" class="btn btn-ghost btn-sm" id="arch"><i data-lucide="archive"></i>Arquivar</button>
       </div>
@@ -190,7 +374,28 @@ function openLead(l){
     </form>`,{side:true});
   const f=m.el.querySelector('#f');
   bindReference(f);
-  f.onsubmit=async e=>{e.preventDefault();if(!await resolveReference(f))return;m.close();await patch({id:l.id,...formData(f)},'Lead atualizado.');};
+  f.onsubmit=async e=>{
+    e.preventDefault();if(!await resolveReference(f))return;
+    const data=formData(f);
+    if(data.stage==='venda_perdida'&&!String(data.loss_reason||'').trim())return PF.toast('Informe o motivo da perda.','err');
+    if(canViewValues){
+      data.products=readProducts(f);
+      if(data.stage==='proposta'&&!data.products.length)return PF.toast('Inclua ao menos um produto na proposta.','err');
+    }
+    m.close();await patch({id:l.id,...data},'Lead atualizado.');
+  };
+  const stageSelect=f.elements.namedItem('stage'),lossField=f.querySelector('#lossReasonField'),lossInput=f.elements.namedItem('loss_reason');
+  const productBox=f.querySelector('#productsEditor');
+  const refreshProductTotal=()=>{const total=f.querySelector('#productTotal');if(total)total.textContent=brlCents(readProducts(f).reduce((sum,p)=>sum+p.amount_cents,0));};
+  const setProductRequired=required=>productBox.querySelectorAll('[data-product-name]').forEach(input=>input.required=required);
+  if(stageSelect)stageSelect.onchange=()=>{
+    const lost=stageSelect.value==='venda_perdida';lossField.hidden=!lost;lossInput.required=lost;lossInput.disabled=!lost;
+    setProductRequired(stageSelect.value==='proposta');
+  };
+  setProductRequired(l.stage==='proposta');
+  f.querySelector('#addProduct').onclick=()=>{productBox.querySelector('#productRows').insertAdjacentHTML('beforeend',productRow());PF.icons();setProductRequired(stageSelect.value==='proposta');};
+  productBox.onclick=e=>{const remove=e.target.closest('[data-remove-product]');if(remove){remove.closest('[data-product-row]').remove();refreshProductTotal();}};
+  productBox.oninput=refreshProductTotal;
   showLeadHistory(l.id,m.el.querySelector('#leadHistory'));
   const g=m.el.querySelector('#gen');if(g)g.onclick=()=>{m.close();generate(l);};
   m.el.querySelector('#wait').onclick=()=>reason(l,'espera');
@@ -211,14 +416,73 @@ function openLead(l){
         let values={};try{values=JSON.parse(item.new_data);}catch{}
         return `<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.created_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.created_at)}<div class="muted small">${PF.esc(Object.entries(values).map(([k,v])=>`${k}: ${v||'—'}`).join(' · '))}</div></li>`;
       }).join('');
-      const stage=data.stages.map(item=>`<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.changed_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.changed_at)}<div class="muted small">${PF.esc(item.from_stage?`${item.from_stage} → ${item.to_stage}`:`Lead criado em ${item.to_stage}`)}</div></li>`).join('');
-      box.innerHTML=`<b>Histórico</b><div class="grid g2" style="margin-top:10px"><div><span class="muted small">Alterações da origem</span><ul class="small" style="padding-left:18px">${attr||'<li>Sem alterações.</li>'}</ul></div><div><span class="muted small">Etapas do funil</span><ul class="small" style="padding-left:18px">${stage||'<li>Sem alterações.</li>'}</ul></div></div>`;
+      const stage=data.stages.map(item=>`<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.changed_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.changed_at)}<div class="muted small">${PF.esc(item.from_stage?`${stageLabel(item.from_stage)} → ${stageLabel(item.to_stage)}`:`Lead criado em ${stageLabel(item.to_stage)}`)}${item.reason?` · Motivo da venda perdida: ${PF.esc(item.reason)}`:''}</div></li>`).join('');
+      const productChanges=data.products.map(item=>{
+        let oldItems=[],newItems=[];try{oldItems=JSON.parse(item.old_data);}catch{}try{newItems=JSON.parse(item.new_data);}catch{}
+        const label=items=>items.map(p=>`${p.name}${canViewValues?` (${brlCents(p.amount_cents)})`:''}`).join(' · ')||'Nenhum produto';
+        return `<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.created_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.created_at)}<div class="muted small">${PF.esc(label(oldItems))} → ${PF.esc(label(newItems))}</div></li>`;
+      }).join('');
+      const contractChanges=data.contracts.map(item=>{
+        const contract=(l.contracts||[]).find(c=>c.id===item.contract_id);
+        return `<li><b>${PF.esc(item.changed_by_name||'Sistema')}</b> · ${PF.fmtDate(item.created_at,{day:'2-digit',month:'2-digit',year:'numeric'})} ${PF.fmtTime(item.created_at)}<div class="muted small">${PF.esc(contract?.kind||'Contrato')} · ${PF.esc(item.action)} · ${PF.esc(contractLabel(item.to_status)||'Criado')}</div></li>`;
+      }).join('');
+      box.innerHTML=`<b>Histórico da oportunidade</b><div class="grid g2" style="margin-top:10px">
+        <div><span class="muted small">Etapas</span><ul class="small" style="padding-left:18px">${stage||'<li>Sem alterações.</li>'}</ul></div>
+        <div><span class="muted small">Produtos e valores</span><ul class="small" style="padding-left:18px">${productChanges||'<li>Sem alterações.</li>'}</ul></div>
+        <div><span class="muted small">Contratos</span><ul class="small" style="padding-left:18px">${contractChanges||'<li>Sem alterações.</li>'}</ul></div>
+        <div><span class="muted small">Origem</span><ul class="small" style="padding-left:18px">${attr||'<li>Sem alterações.</li>'}</ul></div></div>`;
     }catch(e){box.innerHTML=`<span class="small" style="color:var(--pink)">Não foi possível carregar o histórico: ${PF.esc(e.message)}</span>`;}
   }
 }
 
 function generate(l){
-  PF.contractForm({lead:l,onDone:async()=>{await load();}});
+  const activeKinds=new Set((l.contracts||[]).filter(c=>c.status!=='canc').map(c=>c.kind));
+  const options=Object.keys(PF.contractModels).map(kind=>{
+    const names=(l.products||[]).filter(p=>p.category===(kind==='Gestão'?'gestao':'projeto')).map(p=>p.name.toLowerCase()).join(' ');
+    const suggested=kind==='Projetos'&&/e-?commerce|loja/.test(names)?'E-commerce (Tray)'
+      :kind==='Projetos'&&/site|website/.test(names)?'Website':PF.contractModels[kind][0];
+    return `<label class="card flat row" style="align-items:center;gap:12px"><input type="checkbox" data-contract-kind="${kind}" ${activeKinds.has(kind)?'disabled':''}>
+      <b style="min-width:145px">Contrato de ${kind==='Gestão'?'Gestão':'Projeto'}${activeKinds.has(kind)?' · já gerado':''}</b>
+      <select class="select-in" data-contract-model="${kind}" ${activeKinds.has(kind)?'disabled':''}>${PF.contractModels[kind].map(model=>`<option ${model===suggested?'selected':''}>${PF.esc(model)}</option>`).join('')}</select></label>`;
+  }).join('');
+  const m=PF.modal(`<div class="modal-head"><div><h3>Gerar contratos</h3><p class="muted small">${PF.esc(l.company)} · selecione os tipos necessários.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    <form class="stack" id="contractBatch"><div class="stack">${options}</div>
+      <div class="attr-divider"><b>Como obter os dados do cliente?</b></div>
+      <label class="row"><input type="radio" name="mode" value="internal" checked> Preencher os dados internamente</label>
+      <label class="row"><input type="radio" name="mode" value="external"> Gerar link para o cliente preencher</label>
+      <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Continuar</button></div></form>`,{wide:true});
+  m.el.querySelector('#contractBatch').onsubmit=async e=>{
+    e.preventDefault();
+    const selected=[...m.el.querySelectorAll('[data-contract-kind]:checked')].map(input=>({
+      kind:input.dataset.contractKind,model:m.el.querySelector(`[data-contract-model="${input.dataset.contractKind}"]`).value,
+    }));
+    if(!selected.length)return PF.toast('Selecione ao menos um tipo de contrato.','err');
+    const mode=new FormData(e.target).get('mode');m.close();
+    if(mode==='internal'){
+      let index=0;
+      const next=()=>{
+        if(index>=selected.length){load();return;}
+        const {kind,model}=selected[index++];
+        const category=kind==='Gestão'?'gestao':'projeto';
+        const amountCents=productTotal((l.products||[]).filter(p=>p.category===category));
+        PF.contractForm({lead:l,fixedKind:kind,fixedModel:model,amountCents,onDone:async()=>{await load();next();}});
+      };
+      next();return;
+    }
+    const links=[],errors=[];
+    for(const {kind,model} of selected){
+      try{links.push({kind,...await PF.api('/api/contracts',{method:'POST',body:{leadId:l.id,kind,model,dataRequest:true}})});}
+      catch(error){errors.push(`${kind}: ${error.message}`);break;}
+    }
+    await load();
+    const result=PF.modal(`<div class="modal-head"><div><h3>Links dos formulários</h3><p class="muted small">Envie cada link ao cliente. Os links expiram em 30 dias.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+      <div class="stack">${links.map(item=>`<label class="field"><span>Contrato de ${PF.esc(item.kind)}</span><div class="row"><input class="input" readonly value="${PF.esc(item.url)}"><button type="button" class="btn btn-ghost btn-sm" data-copy="${PF.esc(item.url)}">Copiar</button></div></label>`).join('')}
+      ${errors.length?`<div class="note err">${PF.esc(errors.join(' · '))}</div>`:''}${links.length?'':'<p class="muted">Nenhum link foi gerado.</p>'}</div>`,{wide:true});
+    result.el.querySelectorAll('[data-copy]').forEach(button=>button.onclick=async()=>{
+      try{await navigator.clipboard.writeText(button.dataset.copy);PF.toast('Link copiado.','ok');}
+      catch{window.prompt('Copie o link do formulário:',button.dataset.copy);}
+    });
+  };
 }
 
 function referenceFormFields(r={}){
@@ -284,7 +548,7 @@ async function showLeadReports(){
       const data=await PF.api('/api/leads/reports?'+params.toString());
       const table=(title,rows)=>`<section class="card flat mb"><h3>${title}</h3><table class="report-table"><thead><tr><th>Origem</th><th>Leads</th><th>Clientes</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><td>${PF.esc(r.label)}</td><td>${r.leads}</td><td>${r.customers}</td></tr>`).join(''):'<tr><td colspan="3">Sem dados no período.</td></tr>'}</tbody></table></section>`;
       box.innerHTML=`<p class="muted small mb">${data.total} lead(s) no período.</p><div class="grid g2">${table('Por plataforma',data.byPlatform)}${table('Por canal de entrada',data.byChannel)}${table('Por campanha',data.byCampaign)}${table('Por anúncio',data.byAd)}</div>
-        <section class="card flat"><h3>Funil atual por campanha</h3><table class="report-table"><thead><tr><th>Campanha</th><th>Etapa</th><th>Leads</th><th>Clientes</th></tr></thead><tbody>${data.funnel.length?data.funnel.map(r=>`<tr><td>${PF.esc(r.platform+' · '+r.campaign_name)}</td><td>${PF.esc(STAGES.find(s=>s[0]===r.stage)?.[1]||r.stage)}</td><td>${r.leads}</td><td>${r.customers}</td></tr>`).join(''):'<tr><td colspan="4">Sem dados no período.</td></tr>'}</tbody></table></section>`;
+        <section class="card flat"><h3>Funil atual por campanha</h3><table class="report-table"><thead><tr><th>Campanha</th><th>Etapa</th><th>Leads</th><th>Clientes</th></tr></thead><tbody>${data.funnel.length?data.funnel.map(r=>`<tr><td>${PF.esc(r.platform+' · '+r.campaign_name)}</td><td>${PF.esc(stageLabel(r.stage))}</td><td>${r.leads}</td><td>${r.customers}</td></tr>`).join(''):'<tr><td colspan="4">Sem dados no período.</td></tr>'}</tbody></table></section>`;
     }catch(error){box.textContent=error.message;}
   };
   m.el.querySelector('#reportFrom').onchange=draw;m.el.querySelector('#reportTo').onchange=draw;draw();
@@ -300,7 +564,7 @@ document.getElementById('newLead').onclick=()=>{
 };
 document.getElementById('leadReferences').onclick=showReferences;
 document.getElementById('leadReports').onclick=showLeadReports;
-document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();render();};
+document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();refreshFilters();};
 render();load();
 </script>
 </body>

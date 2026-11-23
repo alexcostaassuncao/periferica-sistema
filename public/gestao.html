@@ -32,47 +32,108 @@ const content=PF.shell(id?{title:'Gestão',crumbs:[['Gestão','gestao.html'],['�
 const fdt=d=>d?d.split('-').reverse().join('/'):'—';
 const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
-// ---------- LISTA ----------
+// ---------- LISTA (por competência e carteira) ----------
+const hojeISO=()=>new Date().toISOString().slice(0,10);
+const ymAdd=(m,n)=>{const d=new Date(+m.slice(0,4),+m.slice(5)-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+const ymLabel=m=>PF.monthLabel(new Date(+m.slice(0,4),+m.slice(5)-1,1));
+const CYCLE={planejamento:['Planejamento','blue'],producao:['Em produção','orange'],concluido:['Concluído','green']};
+const cycleBadge=s=>s?PF.badge(...CYCLE[s]):PF.badge('Ciclo não aberto','gray');
 async function lista(){
-  let D={clients:[]},f={squad:'',consultora:'',phase:'gestao',q:''};
-  try{D=await PF.api('/api/gestao');}catch(e){PF.toast(e.message,'err');}
+  let month=sessionStorage.getItem('pf-gestao-mes')||hojeISO().slice(0,7);
+  let D={clients:[],tasks:[],byResponsible:[],pendencias:[]},view=sessionStorage.getItem('pf-gestao-view')||'clientes';
+  let f={squad:'',consultora:'',situ:'todos',resp:'',stage:'',q:''};
+  async function load(){
+    content.innerHTML='<div class="card empty"><i data-lucide="loader"></i><div>Carregando…</div></div>';PF.icons();
+    try{D=await PF.api('/api/gestao?month='+month);}catch(e){PF.toast(e.message,'err');}
+    draw();
+  }
   const draw=()=>{
-    const list=D.clients.filter(c=>(!f.squad||c.squad===f.squad)&&(!f.consultora||c.consultora_id===f.consultora)&&(!f.phase||c.phase===f.phase)&&(!f.q||c.name.toLowerCase().includes(f.q)));
+    const {CAT,STAGES}=PF.taskMeta;
+    // Tarefas do mês que passam pelos filtros de responsável e status
+    const tOk=t=>(!f.resp||(f.resp==='-'?!t.assignee_id:t.assignee_id===f.resp))&&(!f.stage||t.stage===f.stage);
+    const cliOk=c=>(!f.squad||c.squad===f.squad)&&(!f.consultora||c.consultora_id===f.consultora)&&(!f.q||c.name.toLowerCase().includes(f.q))
+      &&(f.situ==='todos'||(f.situ==='pendencias'?(c.abertas>0||c.pend_ant>0):c.concluido))
+      &&(!f.resp&&!f.stage||D.tasks.some(t=>t.client_id===c.id&&t.stage!=='aprovada'&&tOk(t)));
+    const list=D.clients.filter(cliOk),ids=new Set(list.map(c=>c.id));
+    const tasks=D.tasks.filter(t=>ids.has(t.client_id)&&tOk(t)),pend=D.pendencias.filter(t=>ids.has(t.client_id)&&tOk(t));
     const soma=k=>list.reduce((a,c)=>a+Number(c[k]||0),0);
+    const tot=soma('total'),feitos=soma('done'),pct=tot?Math.round(feitos/tot*100):0;
     const consultoras=[...new Map(D.clients.filter(c=>c.consultora_id).map(c=>[c.consultora_id,c.consultora])).entries()];
+    const resps=[...new Map(D.tasks.map(t=>[t.assignee_id||'-',t.assignee_name||'Sem responsável'])).entries()];
+    const late=t=>t.stage!=='aprovada'&&t.due_date&&t.due_date<hojeISO();
+    const comAtraso=list.filter(c=>c.atrasadas>0).length;
+    const taskRow=(t,comp)=>`<tr><td><a class="who" href="gestao.html?id=${t.client_id}">${PF.chip(t.client_name||'')}<div><b>${esc(t.title)}</b><small>${esc(t.client_name||'')}${comp?' · competência '+ymLabel(t.comp):''}</small></div></a></td>
+      <td>${PF.taskStage(t.stage)}${t.client_status==='ajustes'&&t.stage!=='aprovada'?'<div class="tiny" style="color:var(--pink)">cliente pediu ajustes</div>':''}</td><td class="small">${esc(t.assignee_name||'—')}</td><td class="small">${CAT[t.category]||t.category}</td>
+      <td class="small" style="color:${late(t)?'var(--pink)':'inherit'}">${fdt(t.due_date)}</td><td class="right"><button class="btn btn-ghost btn-sm" data-open="${t.id}">Ver tarefa</button></td></tr>`;
+    const taskTable=(arr,comp)=>arr.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Entrega</th><th>Etapa</th><th>Com</th><th>Categoria</th><th>Prazo</th><th></th></tr></thead><tbody>${arr.map(t=>taskRow(t,comp)).join('')}</tbody></table></div>`
+      :'<div class="empty"><i data-lucide="circle-check"></i><div>Nada por aqui com esses filtros.</div></div>';
+    const grupos=[['producao','Em produção',t=>['gestao','copy','video','design'].includes(t.stage)],['revisao','Aguardando revisão',t=>t.stage==='revisao'],['cliente','Aguardando aprovação do cliente',t=>t.stage==='cliente'],
+      ['atrasadas','Entregas atrasadas',late],['aprovadas','Aprovados',t=>t.stage==='aprovada'],['publicadas','Publicados',t=>!!t.publicada]];
+    const panes={
+      clientes:()=>list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Carteira</th><th>Consultora</th><th>Ciclo</th><th style="min-width:150px">Progresso</th><th>Pendentes</th><th>Atrasadas</th><th>Revisão</th><th>Cliente</th><th>Meses anteriores</th><th></th></tr></thead><tbody>
+        ${list.map(c=>`<tr><td><a class="who" href="gestao.html?id=${c.id}">${PF.chip(c.name)}<div><b>${esc(c.name)}</b><small>${esc(c.plano||c.services||c.segment||'—')}${c.phase==='onboarding'?' · em onboarding':''}</small></div></a></td>
+          <td>${c.squad?PF.badge(c.squad,'orange'):`<a href="clientes.html?id=${c.id}" title="Definir carteira na ficha do cliente">${PF.badge('Sem carteira','yellow')}</a>`}</td>
+          <td class="small">${c.consultora?esc(c.consultora):`<a class="link tiny" href="clientes.html?id=${c.id}">definir</a>`}</td>
+          <td>${cycleBadge(c.cycle_status)}</td>
+          <td>${c.total?PF.progress(c.pct)+`<div class="muted tiny">${c.done} de ${c.total} entregas</div>`:'<span class="muted tiny">Sem entregas no mês</span>'}</td>
+          <td>${c.abertas}</td><td>${c.atrasadas?PF.badge(String(c.atrasadas),'solid-red'):'0'}</td><td>${c.revisao||'0'}</td><td>${c.cliente||'0'}${c.ajustes?`<div class="tiny" style="color:var(--pink)">${c.ajustes} ajuste(s)</div>`:''}</td>
+          <td>${c.pend_ant?PF.badge(String(c.pend_ant),'yellow'):'0'}</td>
+          <td class="right"><a class="btn btn-ghost btn-sm" href="gestao.html?id=${c.id}" onclick="sessionStorage.setItem('pf-gestao-tab','ciclo')">Abrir</a></td></tr>`).join('')}</tbody></table></div>`
+        :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros em ${ymLabel(month)}.<br><span class="tiny">Se um cliente não aparece para você, ele pode estar em outra carteira: verifique com o administrador.</span></div></div>`,
+      responsaveis:()=>{const by=new Map();for(const t of tasks.filter(t=>t.stage!=='aprovada')){const k=t.assignee_id||'-';const r=by.get(k)||{id:k,name:t.assignee_name||'Sem responsável',abertas:0,atrasadas:0,list:[]};r.abertas++;if(late(t))r.atrasadas++;r.list.push(t);by.set(k,r);}
+        const arr=[...by.values()].sort((a,b)=>b.abertas-a.abertas);
+        return arr.length?arr.map(r=>`<details class="card flat" style="margin-bottom:10px"><summary class="row between" style="cursor:pointer;gap:10px"><div class="row">${PF.avatar(r.name)}<b>${esc(r.name)}</b></div><span class="small">${r.abertas} pendente(s)${r.atrasadas?' · '+PF.badge(r.atrasadas+' atrasada(s)','solid-red'):''}</span></summary><div style="margin-top:10px">${taskTable(r.list)}</div></details>`).join('')
+          :'<div class="empty"><i data-lucide="circle-check"></i><div>Nenhuma atividade pendente.</div></div>';},
+      status:()=>grupos.map(([k,l,fn])=>{const arr=tasks.filter(fn);return `<details class="card flat" style="margin-bottom:10px" ${arr.length&&k!=='aprovadas'&&k!=='publicadas'?'open':''}><summary class="row between" style="cursor:pointer"><b>${l}</b><span class="count">${arr.length}</span></summary><div style="margin-top:10px">${taskTable(arr)}</div></details>`;}).join(''),
+      pendencias:()=>`<p class="muted small mb">Entregas não concluídas de competências anteriores a ${ymLabel(month)}. Elas continuam no mês de origem e não alteram o que foi contratado para os meses seguintes.</p>${taskTable(pend,true)}`,
+    };
     content.innerHTML=`
+    <div class="card mb"><div class="filters" style="margin:0">
+      <button class="icon-btn" id="mPrev" aria-label="Mês anterior"><i data-lucide="chevron-left"></i></button>
+      <div style="min-width:170px;text-align:center"><div class="muted tiny">Competência</div><b>${ymLabel(month)}</b></div>
+      <button class="icon-btn" id="mNext" aria-label="Próximo mês"><i data-lucide="chevron-right"></i></button>
+      ${month!==hojeISO().slice(0,7)?'<a class="link small" href="#" id="mNow">Mês atual</a>':''}
+      <div class="toggle" style="margin-left:auto">${[['','Todas'],['C1','C1'],['C2','C2'],['C3','C3']].map(([k,l])=>`<button data-sq="${k}" class="${f.squad===k?'on':''}">${k?'Carteira '+l:'Todas as carteiras'}</button>`).join('')}</div>
+    </div>${D.window?`<p class="muted tiny" style="margin-top:8px">Reuniões de planejamento de ${ymLabel(month)}: ${fdt(D.window.from)} a ${fdt(D.window.to)}.</p>`:''}</div>
     <section class="grid g4 mb">
-      ${PF.kpi({icon:'users',color:'orange',value:String(list.length),label:'Clientes na lista'})}
-      ${PF.kpi({icon:'list-todo',color:'blue',value:String(soma('abertas')),label:'Tarefas em andamento'})}
-      ${PF.kpi({icon:'alarm-clock',color:'pink',value:String(soma('atrasadas')),label:'Tarefas atrasadas'})}
-      ${PF.kpi({icon:'circle-check',color:'green',value:String(soma('aprovadas_mes')),label:'Aprovadas no mês'})}
+      ${PF.kpi({icon:'users',color:'orange',value:String(list.length),label:'Clientes no mês'})}
+      ${PF.kpi({icon:'chart-pie',color:'green',value:pct+'%',label:`Conclusão das entregas (${feitos}/${tot})`})}
+      ${PF.kpi({icon:'list-todo',color:'blue',value:String(soma('abertas')),label:'Atividades pendentes'})}
+      ${PF.kpi({icon:'alarm-clock',color:'pink',value:String(comAtraso),label:'Clientes com entregas atrasadas'})}
     </section>
+    <div class="row wrap mb" style="gap:8px">${[['Aguardando revisão',soma('revisao'),'yellow'],['Aguardando o cliente',soma('cliente'),'orange'],['Aprovados',soma('aprovadas'),'green'],['Publicados',soma('publicadas'),'blue'],['Pendências anteriores',soma('pend_ant'),'pink']].map(([l,n,c])=>PF.badge(`${l}: ${n}`,c)).join('')}</div>
     <div class="card">
+      <div class="tabs">${[['clientes','Clientes',list.length],['responsaveis','Por responsável',tasks.filter(t=>t.stage!=='aprovada').length],['status','Por status',tasks.length],['pendencias','Pendências anteriores',pend.length]].map(([k,l,n])=>`<button data-v="${k}" class="${view===k?'on':''}">${l}<span class="count">${n}</span></button>`).join('')}</div>
       <div class="filters">
-        ${PF.select('fPhase','Fase',[['gestao','Em Gestão'],['onboarding','Em onboarding'],['','Todas as fases']])}
-        ${PF.select('fSquad','Carteira',[['','Carteira: todas'],['C1','C1'],['C2','C2'],['C3','C3']])}
+        <div class="toggle">${[['todos','Todos'],['pendencias','Com pendências'],['concluidos','Concluídos']].map(([k,l])=>`<button data-situ="${k}" class="${f.situ===k?'on':''}">${l}</button>`).join('')}</div>
         ${PF.select('fCons','Consultora',[['','Consultora: todas'],...consultoras])}
+        ${PF.select('fResp','Responsável',[['','Responsável: todos'],...resps])}
+        ${PF.select('fStage','Status',[['','Status: todos'],...STAGES])}
         <a class="link" href="#" id="clear">Limpar filtros</a>
       </div>
-      ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Carteira</th><th>Consultora</th><th>Plano contratado</th><th>Tarefas</th><th>Atrasadas</th><th>Próxima reunião</th><th></th></tr></thead><tbody>
-      ${list.map(c=>{const [dt,tt]=(c.proxima||'').split('|');return `<tr><td><a class="who" href="gestao.html?id=${c.id}">${PF.chip(c.name)}<div><b>${esc(c.name)}</b><small>${esc(c.segment||'—')}${c.phase==='onboarding'?' · em onboarding':''}</small></div></a></td>
-        <td>${c.squad?PF.badge(c.squad,'orange'):`<a href="clientes.html?id=${c.id}" title="Definir carteira na ficha do cliente">${PF.badge('Sem carteira','yellow')}</a>`}</td><td>${c.consultora?esc(c.consultora):`<a class="link tiny" href="clientes.html?id=${c.id}">definir</a>`}</td><td>${esc(c.plano||c.services||'—')}${c.plano_valor?`<div class="muted tiny">${esc(c.plano_valor)}</div>`:''}</td>
-        <td>${c.abertas}</td><td>${c.atrasadas?PF.badge(String(c.atrasadas),'solid-red'):'0'}</td><td class="small">${dt?fdt(dt.split(' ')[0])+' '+dt.split(' ')[1]+'<div class="muted tiny">'+esc(tt)+'</div>':'—'}</td>
-        <td class="right"><a class="btn btn-ghost btn-sm" href="gestao.html?id=${c.id}">Abrir</a></td></tr>`;}).join('')}</tbody></table></div>`
-      :`<div class="empty"><i data-lucide="inbox"></i><div>Nenhum cliente com esses filtros. Clientes entram na Gestão quando o onboarding é concluído.<br><span class="tiny">Se um cliente não aparece para você, ele pode estar em outra carteira: verifique com o administrador.</span></div></div>`}
+      ${panes[view]()}
     </div>`;
     PF.icons();
     const bind=(i,k)=>{const s=content.querySelector('#'+i);s.value=f[k];s.onchange=()=>{f[k]=s.value;draw();};};
-    bind('fPhase','phase');bind('fSquad','squad');bind('fCons','consultora');
-    content.querySelector('#clear').onclick=e=>{e.preventDefault();f={squad:'',consultora:'',phase:'gestao',q:''};document.getElementById('globalSearch').value='';draw();};
+    bind('fCons','consultora');bind('fResp','resp');bind('fStage','stage');
+    const go=m=>{month=m;sessionStorage.setItem('pf-gestao-mes',m);load();};
+    content.querySelector('#mPrev').onclick=()=>go(ymAdd(month,-1));
+    content.querySelector('#mNext').onclick=()=>go(ymAdd(month,1));
+    const now=content.querySelector('#mNow');if(now)now.onclick=e=>{e.preventDefault();go(hojeISO().slice(0,7));};
+    content.querySelectorAll('[data-sq]').forEach(b=>b.onclick=()=>{f.squad=b.dataset.sq;draw();});
+    content.querySelectorAll('[data-situ]').forEach(b=>b.onclick=()=>{f.situ=b.dataset.situ;draw();});
+    content.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{view=b.dataset.v;sessionStorage.setItem('pf-gestao-view',view);draw();});
+    content.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>PF.Tarefa.open(b.dataset.open,{onChange:load}));
+    content.querySelector('#clear').onclick=e=>{e.preventDefault();f={squad:'',consultora:'',situ:'todos',resp:'',stage:'',q:''};document.getElementById('globalSearch').value='';draw();};
   };
   document.getElementById('globalSearch').oninput=e=>{f.q=e.target.value.toLowerCase();draw();};
-  draw();
+  load();
 }
 
 // ---------- CLIENTE ----------
 async function cliente(){
-  let D,M=[],T=[],tab=sessionStorage.getItem('pf-gestao-tab')||'reunioes',tf={stage:'',category:''};
+  let D,M=[],T=[],tab=sessionStorage.getItem('pf-gestao-tab')||'ciclo',tf={stage:'',category:''};
+  let cm=sessionStorage.getItem('pf-gestao-mes')||hojeISO().slice(0,7),CY=null,gview='lista',ppl=null;
   async function load(){
     try{[D,M,T]=await Promise.all([PF.api('/api/clients/detail?id='+encodeURIComponent(id)),PF.api('/api/meetings?client='+encodeURIComponent(id)).then(r=>r.meetings),PF.api('/api/tasks?client='+encodeURIComponent(id)).then(r=>r.tasks)]);}
     catch(e){content.innerHTML=`<div class="card empty"><i data-lucide="search-x"></i><div>${esc(e.message)}</div><a class="btn btn-ghost" href="gestao.html" style="margin-top:12px">Voltar para a Gestão</a></div>`;PF.icons();return;}
@@ -92,10 +153,10 @@ async function cliente(){
       <div class="row" style="gap:18px"><div><div class="muted tiny">Tarefas em andamento</div><b style="font-size:20px">${abertas}</b></div><div><div class="muted tiny">Aprovadas</div><b style="font-size:20px">${feitas}</b></div></div>
     </div></div>
     ${!c.squad||!D.team.find(t=>t.role==='consultora'&&t.user_id)?`<div class="note mb"><i data-lucide="triangle-alert"></i><div>Este cliente ainda está sem ${!c.squad?'<b>carteira</b>':''}${!c.squad&&!D.team.find(t=>t.role==='consultora'&&t.user_id)?' e sem ':''}${!D.team.find(t=>t.role==='consultora'&&t.user_id)?'<b>consultora</b>':''}. <a class="link" href="clientes.html?id=${c.id}">Definir na ficha do cliente → aba Equipe</a></div></div>`:''}
-    <div class="tabs">${[['geral','Visão geral'],['reunioes','Reuniões e atas'],['tarefas','Tarefas ('+T.length+')'],['historico','Histórico']].map(([k,l])=>`<button data-t="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}</div>
+    <div class="tabs">${[['ciclo','Ciclo do mês'],['geral','Visão geral'],['reunioes','Reuniões e atas'],['tarefas','Tarefas ('+T.length+')'],['historico','Histórico']].map(([k,l])=>`<button data-t="${k}" class="${k===tab?'on':''}">${l}</button>`).join('')}</div>
     <div id="pane"></div>`;
     const p=content.querySelector('#pane');
-    ({geral,reunioes,tarefas,historico})[tab](p);
+    (({ciclo,geral,reunioes,tarefas,historico})[tab]||ciclo)(p);
     PF.icons();
     content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;sessionStorage.setItem('pf-gestao-tab',tab);draw();});
   }
@@ -110,10 +171,106 @@ async function cliente(){
           :'<div class="muted small">Nenhum contrato assinado ligado a este cliente.</div>'}</div>
       <div class="card"><div class="card-head"><h3>Equipe</h3></div>${D.team.map(t=>`<div class="li"><div class="t"><span>${t.label}</span><b>${esc(t.name||'—')}</b></div></div>`).join('')}</div>
     </div>
+    <div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Vigência da operação</h3><p>Os ciclos mensais só são abertos dentro deste período. Deixe o fim em branco enquanto o contrato estiver ativo.</p></div></div>
+      <form class="row wrap" id="vig" style="gap:10px;align-items:flex-end">
+        <label class="field"><span>Início da operação</span><input class="input" type="date" name="service_start" value="${esc(c.service_start||'')}"></label>
+        <label class="field"><span>Fim (cancelamento)</span><input class="input" type="date" name="service_end" value="${esc(c.service_end||'')}"></label>
+        <button class="btn btn-ghost">Salvar vigência</button></form></div>
     <div class="card" style="margin-top:14px"><div class="card-head"><div><h3>O que o plano inclui</h3><p>Total previsto no mês. Entregas semanais são multiplicadas pelas semanas de produção do mês; as mensais ficam fixas.</p></div>
       <a class="btn btn-ghost btn-sm" href="clientes.html?id=${id}" onclick="sessionStorage.setItem('pf-ficha-tab','servicos')"><i data-lucide="pencil"></i>Editar entregas</a></div>
       <div id="entMes"></div></div>`;
     PF.Entregas.mes(p.querySelector('#entMes'),id,{editHref:'clientes.html?id='+id});
+    p.querySelector('#vig').onsubmit=async e=>{e.preventDefault();const F=e.target.elements;
+      try{await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,action:'dates',service_start:F.service_start.value,service_end:F.service_end.value}});PF.toast('Vigência salva.','ok');load();}catch(x){PF.toast(x.message,'err');}};
+  }
+  // ---------- CICLO DO MÊS: planejamento, grade de conteúdos e aprovação do cliente ----------
+  async function ciclo(p){
+    p.innerHTML='<div class="card empty"><i data-lucide="loader"></i><div>Carregando o ciclo…</div></div>';PF.icons();
+    try{[CY,ppl]=await Promise.all([PF.api(`/api/ciclos?client=${encodeURIComponent(id)}&month=${cm}`),ppl||PF.api('/api/people').then(r=>r.people).catch(()=>[])]);}
+    catch(e){p.innerHTML=`<div class="card empty"><i data-lucide="triangle-alert"></i><div>${esc(e.message)}</div></div>`;PF.icons();return;}
+    const {CAT,FMT}=PF.taskMeta,y=CY.cycle,T2=CY.tasks,planned=!!y?.planning_done_at;
+    const req=T2.filter(t=>t.required),base=req.length?req:T2,done=base.filter(t=>t.stage==='aprovada').length,pct=base.length?Math.round(done/base.length*100):0;
+    const name=uid=>(ppl.find(x=>x.id===uid)||{}).name||'—';
+    const isVid=t=>String(t.category).startsWith('video');
+    const editable=t=>t.stage==='gestao';
+    const opts=(v)=>[['','—'],...ppl.map(x=>[x.id,x.name])].map(([k,l])=>`<option value="${esc(k)}" ${k===v?'selected':''}>${esc(l)}</option>`).join('');
+    const inp=(t,k,label,val,{type='text',rows=0,full=false}={})=>`<label class="field ${full?'full':''}"><span>${label}</span>${!editable(t)?`<div class="tk-ro">${esc(type==='date'?fdt(val):val||'—')}</div>`
+      :rows?`<textarea class="input" data-id="${t.id}" data-k="${k}" style="min-height:${rows}px">${esc(val||'')}</textarea>`:`<input class="input" type="${type}" data-id="${t.id}" data-k="${k}" value="${esc(val||'')}">`}</label>`;
+    const item=t=>`<div class="card flat" style="margin-bottom:10px">
+      <div class="row between wrap" style="gap:8px;margin-bottom:8px"><div class="row" style="gap:8px">${PF.badge(CAT[t.category]||t.category,isVid(t)?'pink':'purple')}${PF.taskStage(t.stage)}${t.client_status==='ajustes'&&t.stage!=='aprovada'?PF.badge('cliente pediu ajustes','pink'):''}${t.publicada?PF.badge('Publicado','blue'):''}${t.required?'':'<span class="muted tiny">fora do plano</span>'}</div>
+        <div class="row" style="gap:6px"><span class="muted tiny">Com: ${esc(name(t.assignee_id))}</span><button class="btn btn-ghost btn-sm" data-open="${t.id}">Ver tarefa</button></div></div>
+      <div class="tk-grid">
+        ${inp(t,'title','Tema',t.title,{full:true})}
+        ${inp(t,'objective','Objetivo',t.objective,{rows:44})}
+        ${inp(t,'strategy','Direcionamento / orientações',t.strategy,{rows:44})}
+        ${inp(t,'publish_date','Data prevista de publicação',t.publish_date,{type:'date'})}
+        ${inp(t,'due_date','Prazo de execução',t.due_date,{type:'date'})}
+        <label class="field"><span>Formato</span><div class="tk-ro">${FMT[t.format]||t.format}</div></label>
+        ${isVid(t)?`${inp(t,'script','Roteiro',t.script,{rows:60,full:true})}
+        <label class="field"><span>Precisa de captação?</span>${editable(t)?`<select class="select-in" data-id="${t.id}" data-k="needs_capture"><option value="0" ${t.needs_capture?'':'selected'}>Não</option><option value="1" ${t.needs_capture?'selected':''}>Sim</option></select>`:`<div class="tk-ro">${t.needs_capture?'Sim':'Não'}</div>`}</label>
+        <label class="field"><span>Responsável pela captação</span>${editable(t)?`<select class="select-in" data-id="${t.id}" data-k="capture_id">${opts(t.capture_id)}</select>`:`<div class="tk-ro">${esc(name(t.capture_id))}</div>`}</label>
+        <label class="field"><span>Responsável pela edição</span>${editable(t)?`<select class="select-in" data-id="${t.id}" data-k="editor_id">${opts(t.editor_id)}</select>`:`<div class="tk-ro">${esc(name(t.editor_id))}</div>`}</label>`:''}
+        ${!editable(t)&&(t.art_text||t.caption)?`<label class="field full"><span>Copy da arte / legenda</span><div class="tk-ro">${esc([t.art_text,t.caption].filter(Boolean).join('\n\n'))}</div></label>`:''}
+        ${t.last_url?`<label class="field full"><span>Arquivo final</span><a class="link small" href="${esc(t.last_url)}" target="_blank" rel="noopener">${t.last_kind==='video'?'Ver vídeo':'Ver arte'}</a></label>`:''}
+      </div></div>`;
+    const calendario=()=>{
+      const [yy,mm]=cm.split('-').map(Number),first=new Date(yy,mm-1,1),days=new Date(yy,mm,0).getDate(),pad=(first.getDay()+6)%7;
+      const cells=[...Array(pad).fill(null),...Array.from({length:days},(_,i)=>i+1)];
+      const semData=T2.filter(t=>!(t.publish_date||t.due_date||'').startsWith(cm));
+      return `<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px">${['seg','ter','qua','qui','sex','sáb','dom'].map(d=>`<div class="muted tiny" style="text-align:center">${d}</div>`).join('')}
+        ${cells.map(d=>{if(!d)return '<div></div>';const ds=cm+'-'+String(d).padStart(2,'0');const it=T2.filter(t=>(t.publish_date||t.due_date)===ds);
+          return `<div class="card flat" style="min-height:84px;padding:6px"><div class="tiny muted">${d}</div>${it.map(t=>`<button data-open="${t.id}" title="${esc(t.title)}" style="display:block;width:100%;margin-top:4px;padding:5px;border:1px solid var(--line);border-radius:7px;text-align:left;font-size:11px;line-height:1.3;color:var(--soft);overflow:hidden">${PF.taskStage(t.stage)}<span style="display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span></button>`).join('')}</div>`;}).join('')}</div>
+        ${semData.length?`<p class="muted tiny" style="margin-top:8px">${semData.length} entrega(s) sem data de publicação neste mês.</p>`:''}`;
+    };
+    const meet=CY.meetings.find(m=>m.id===y?.meeting_id);
+    p.innerHTML=`
+    <div class="card mb"><div class="row between wrap" style="gap:12px">
+      <div class="row" style="gap:8px"><button class="icon-btn" id="cPrev" aria-label="Mês anterior"><i data-lucide="chevron-left"></i></button>
+        <div style="min-width:160px;text-align:center"><div class="muted tiny">Competência</div><b>${ymLabel(cm)}</b></div>
+        <button class="icon-btn" id="cNext" aria-label="Próximo mês"><i data-lucide="chevron-right"></i></button>${cycleBadge(y?.status)}</div>
+      <div style="min-width:200px">${base.length?PF.progress(pct)+`<div class="muted tiny">${done} de ${base.length} entregas obrigatórias finalizadas</div>`:'<span class="muted small">Nenhuma entrega neste mês.</span>'}</div>
+      <div class="row" style="gap:8px">${y?`<button class="btn btn-ghost btn-sm" id="cGrade"><i data-lucide="share-2"></i>Enviar grade ao cliente</button>`:`<button class="btn btn-primary btn-sm" id="cOpen"><i data-lucide="calendar-plus"></i>Abrir ciclo e gerar entregas</button>`}</div>
+    </div>
+    ${y?'':`<p class="muted small" style="margin-top:10px">O ciclo de ${ymLabel(cm)} ainda não foi aberto. Ele abre sozinho no dia 20, dois meses antes, para clientes com plano de entregas. ${CY.preview.rows.length?`O plano prevê: ${CY.preview.rows.map(r=>r.total+' '+r.label).join(', ')}.`:'O plano deste cliente ainda não tem entregas definidas.'}</p>`}
+    </div>
+    ${y?`<div class="grid g2 mb">
+      <div class="card"><div class="card-head"><div><h3>1. Reunião de planejamento</h3><p>Janela: ${fdt(CY.window.from)} a ${fdt(CY.window.to)}.</p></div><button class="btn btn-ghost btn-sm" id="cNewMeet"><i data-lucide="plus"></i>Agendar reunião</button></div>
+        <label class="field"><span>Reunião do ciclo</span><select class="select-in" id="cMeet"><option value="">— escolha —</option>${CY.meetings.map(m=>`<option value="${m.id}" ${m.id===y.meeting_id?'selected':''}>${fdt(m.date)} ${m.start_time} · ${esc(m.title)}${m.has_minutes?' · com ata':''}</option>`).join('')}</select></label>
+        ${meet?`<div class="row wrap" style="gap:8px;margin-top:10px">${meet.has_minutes?PF.badge('Reunião realizada · ata registrada','green'):PF.badge('Ata pendente','yellow')}<button class="btn btn-ghost btn-sm" data-ata="${meet.id}"><i data-lucide="file-text"></i>${meet.has_minutes?'Ver/editar ata':'Registrar ata'}</button></div>
+          ${meet.minutes_summary?`<div class="tk-ro" style="margin-top:8px">${esc(meet.minutes_summary)}</div>`:''}`:''}</div>
+      <div class="card"><div class="card-head"><div><h3>2. Estratégia do mês</h3><p>Vai junto com cada entrega para o Copy, sem redigitar.</p></div></div>
+        <textarea class="input" id="cStrat" style="min-height:110px" placeholder="Decisões da reunião, foco do mês, campanhas e solicitações do cliente">${esc(y.strategy||'')}</textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn btn-ghost btn-sm" id="cSavePlan"><i data-lucide="save"></i>Salvar estratégia</button></div></div>
+    </div>
+    <div class="card"><div class="card-head"><div><h3>3. Grade de conteúdos</h3><p>${planned?`Planejamento concluído em ${new Date(y.planning_done_at).toLocaleDateString('pt-BR')} por ${esc(y.planning_done_by)}. As entregas seguem pela esteira de produção.`:'Defina tema, objetivo e direcionamento de cada entrega. Ao concluir, todas vão automaticamente para a fila do Copy.'}</p></div>
+        <div class="toggle"><button data-gv="lista" class="${gview==='lista'?'on':''}"><i data-lucide="list" style="width:15px"></i> Lista</button><button data-gv="cal" class="${gview==='cal'?'on':''}"><i data-lucide="calendar-days" style="width:15px"></i> Calendário</button></div></div>
+      ${gview==='cal'?calendario():(T2.map(item).join('')||'<div class="empty"><i data-lucide="package-open"></i><div>Nenhuma entrega neste ciclo. Defina o plano do cliente e abra o ciclo de novo.</div></div>')}
+      ${gview==='lista'&&T2.some(editable)?`<div class="row wrap" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn btn-ghost" id="cSaveItems"><i data-lucide="save"></i>Salvar grade</button>${planned?'':`<button class="btn btn-primary" id="cConclude"><i data-lucide="send"></i>Concluir planejamento e enviar para o Copy</button>`}</div>`:''}
+    </div>`:''}`;
+    PF.icons();
+    const reload=()=>ciclo(p);
+    const go=m=>{cm=m;sessionStorage.setItem('pf-gestao-mes',m);reload();};
+    p.querySelector('#cPrev').onclick=()=>go(ymAdd(cm,-1));p.querySelector('#cNext').onclick=()=>go(ymAdd(cm,1));
+    const on=(sel,fn)=>{const e=p.querySelector(sel);if(e)e.onclick=fn;};
+    on('#cOpen',async()=>{try{const r=await PF.api('/api/ciclos',{method:'POST',body:{client_id:id,month:cm}});PF.toast(r.message,'ok');load();}catch(e){PF.toast(e.message,'err');}});
+    on('#cNewMeet',()=>PF.Reuniao.form({client_id:id,date:CY.window.from>hojeISO()?CY.window.from:hojeISO()},{onDone:async()=>{M=await PF.api('/api/meetings?client='+encodeURIComponent(id)).then(r=>r.meetings);reload();}}));
+    p.querySelectorAll('[data-ata]').forEach(b=>b.onclick=()=>PF.Reuniao.ata(b.dataset.ata,{onDone:reload}));
+    const meetSel=p.querySelector('#cMeet');if(meetSel)meetSel.onchange=async()=>{try{await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'plan',meeting_id:meetSel.value}});reload();}catch(e){PF.toast(e.message,'err');}};
+    on('#cSavePlan',async()=>{try{await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'plan',strategy:p.querySelector('#cStrat').value}});PF.toast('Estratégia salva.','ok');}catch(e){PF.toast(e.message,'err');}});
+    p.querySelectorAll('[data-gv]').forEach(b=>b.onclick=()=>{gview=b.dataset.gv;reload();});
+    p.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>PF.Tarefa.open(b.dataset.open,{onChange:reload}));
+    const collect=()=>{const by={};p.querySelectorAll('[data-id][data-k]').forEach(i=>{(by[i.dataset.id]??={id:i.dataset.id})[i.dataset.k]=i.dataset.k==='needs_capture'?i.value==='1':i.value;});return Object.values(by);};
+    const saveItems=async(silent)=>{try{await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'items',items:collect()}});if(!silent)PF.toast('Grade salva.','ok');return true;}catch(e){PF.toast(e.message,'err');return false;}};
+    on('#cSaveItems',async()=>{if(await saveItems())reload();});
+    on('#cConclude',async()=>{if(!await saveItems(true))return;if(!confirm('Concluir o planejamento? Todas as entregas em Gestão vão para a fila do Copy.'))return;
+      try{const r=await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'conclude'}});PF.toast(`${r.sent} entregas enviadas para o Copy.`,'ok');load();}catch(e){PF.toast(e.message,'err');}});
+    on('#cGrade',async()=>{try{const r=await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'grade'}});
+      const msg=`Olá! Segue a grade de conteúdos de ${ymLabel(cm)} para sua aprovação: ${r.url}`;
+      const m=PF.modal(`<div class="modal-head"><div><h3>Grade do mês para o cliente</h3><p class="muted small">O cliente vê os conteúdos liberados pela revisão e aprova cada um separadamente. O link vale 45 dias; gerar de novo invalida o anterior.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+        <input class="input" readonly value="${esc(r.url)}" id="gUrl"><div class="modal-foot"><button class="btn btn-ghost" id="gCopy"><i data-lucide="copy"></i>Copiar link</button>
+        <a class="btn btn-primary" target="_blank" rel="noopener" href="https://wa.me/${String(r.phone||'').replace(/\D/g,'')}?text=${encodeURIComponent(msg)}"><i data-lucide="message-circle"></i>Enviar pelo WhatsApp</a></div>`);
+      m.el.querySelector('#gCopy').onclick=()=>{navigator.clipboard.writeText(r.url).then(()=>PF.toast('Link copiado.','ok'));};PF.icons();
+    }catch(e){PF.toast(e.message,'err');}});
   }
   function reunioes(p){
     const hoje=new Date().toISOString().slice(0,10);

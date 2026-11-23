@@ -3,11 +3,11 @@
 (function(){
   const CFG={
     copy:{title:'Copy',sub:'Briefing, texto da arte e legenda. Salve e envie para o Design.',
-      tabs:[['fazer','Para fazer',['copy']],['enviadas','Já enviadas',['design','revisao','cliente']],['aprovadas','Aprovadas',['aprovada']]]},
+      tabs:[['fazer','Para fazer',['copy']],['enviadas','Já enviadas',['video','design','revisao','cliente']],['aprovadas','Aprovadas',['aprovada']]]},
     design:{title:'Design',sub:'Veja o briefing, anexe a arte ou o vídeo e envie para a Revisão.',
-      tabs:[['fazer','Para fazer',['design']],['enviadas','Na revisão / cliente',['revisao','cliente']],['aprovadas','Aprovadas',['aprovada']]]},
+      tabs:[['fazer','Para fazer',['design']],['video','Videomaker',['video']],['enviadas','Na revisão / cliente',['revisao','cliente']],['aprovadas','Aprovadas',['aprovada']]]},
     revisao:{title:'Revisão',sub:'Confira a entrega com a legenda, peça ajustes ou libere para o cliente.',
-      tabs:[['fazer','Para revisar',['revisao']],['cliente','Com o cliente',['cliente']],['aprovadas','Aprovadas',['aprovada']],['producao','Em produção',['gestao','copy','design']]]},
+      tabs:[['fazer','Para revisar',['revisao']],['cliente','Com o cliente',['cliente']],['aprovadas','Aprovadas',['aprovada']],['producao','Em produção',['gestao','copy','video','design']]]},
   };
   PF.tasks=function({role}){
     const cfg=CFG[role],esc=PF.esc;

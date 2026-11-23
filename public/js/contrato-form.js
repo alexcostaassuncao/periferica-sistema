@@ -1,5 +1,5 @@
 /* Formulário do contrato (usado no Comercial e em Contratos).
-   PF.contractForm({lead, contract, closed, onDone})
+   PF.contractForm({lead, contract, readyLeads, onDone})
    - Preenche sozinho com os dados do lead, os preços do plano, as datas e a multa (tudo editável).
    - Os campos mudam conforme o modelo: Gestão (planos), Website ou E-commerce. */
 (function(){
@@ -66,20 +66,20 @@
         ${f('condicao_pagamento','Condição especial (opcional)',d.condicao_pagamento,{ph:'Ex.: entrada + 5 parcelas no boleto',full:true})}${f('multa_percentual','Multa por desistência (%)',d.multa_percentual,{type:'number'})}</div></fieldset>`;
   }
 
-  PF.contractForm=async function({lead=null,contract=null,closed=null,onDone}={}){
+  PF.contractForm=async function({lead=null,contract=null,readyLeads=null,fixedKind=null,fixedModel=null,amountCents=null,onDone}={}){
     // Dados de partida: contrato existente → seus dados; lead → cadastro do lead.
     const fromLead=l=>l?{razao_social:l.company,representante:l.contact_name,telefone:l.phone,email_socio:l.email,email_financeiro:l.email}:{};
-    let kind=contract?.kind||'Gestão';
-    let model=contract?.model||(/site|website/i.test(lead?.interest||'')?'Website':/e-?commerce|loja/i.test(lead?.interest||'')?'E-commerce (Tray)':'ADS PRO');
+    let kind=contract?.kind||fixedKind||'Gestão';
+    let model=contract?.model||fixedModel||(/site|website/i.test(lead?.interest||'')?'Website':/e-?commerce|loja/i.test(lead?.interest||'')?'E-commerce (Tray)':'ADS PRO');
     if(/site|website|e-?commerce|loja/i.test(model))kind='Projetos';
     let dados=contract?{razao_social:contract.company,documento:contract.document,representante:contract.contact_name,telefone:contract.phone,email_socio:contract.email,...contract.data}:fromLead(lead);
 
     const m=PF.modal(`<div class="modal-head"><div><h3>${contract?'Editar contrato':'Gerar contrato'}</h3>
       <p class="muted small">Usa o modelo da Periférica. Só os dados do cliente, valores e datas mudam.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
       <form id="cf" class="stack">
-        ${closed?`<label class="field"><span>Lead fechado no Comercial</span><select class="select-in" name="leadId"><option value="">Sem lead (preencher manualmente)</option>${closed.map(l=>`<option value="${l.id}">${esc(l.company)}${l.contact_name?' – '+esc(l.contact_name):''}</option>`).join('')}</select></label>`:''}
+        ${readyLeads?`<label class="field"><span>Oportunidade em Aguardando contrato</span><select class="select-in" name="leadId"><option value="">Sem oportunidade (preencher manualmente)</option>${readyLeads.map(l=>`<option value="${l.id}">${esc(l.company)}${l.contact_name?' – '+esc(l.contact_name):''}</option>`).join('')}</select></label>`:''}
         <div class="cf-grid">
-          <label class="field"><span>Tipo</span><select class="select-in" name="kind">${Object.keys(MODELS).map(k=>`<option ${k===kind?'selected':''}>${k}</option>`).join('')}</select></label>
+          <label class="field"><span>Tipo</span><select class="select-in" name="kind" ${fixedKind?'disabled':''}>${Object.keys(MODELS).map(k=>`<option ${k===kind?'selected':''}>${k}</option>`).join('')}</select></label>
           <label class="field"><span>${kind==='Gestão'?'Plano':'Modelo'}</span><select class="select-in" name="model"></select></label>
         </div>
         <div id="cfBody"></div>
@@ -121,7 +121,7 @@
     }
     F.kind.onchange=()=>{model=MODELS[F.kind.value][0];fillModels();render(true);};
     F.model.onchange=()=>{model=F.model.value;render(true);};
-    if(F.leadId)F.leadId.onchange=()=>{const l=closed.find(x=>x.id===F.leadId.value);dados={...dados,...fromLead(l)};body.querySelectorAll('[name]').forEach(i=>{const v=fromLead(l)[i.name];if(v)i.value=v;});};
+    if(F.leadId)F.leadId.onchange=()=>{const l=readyLeads.find(x=>x.id===F.leadId.value);dados={...dados,...fromLead(l)};body.querySelectorAll('[name]').forEach(i=>{const v=fromLead(l)[i.name];if(v)i.value=v;});};
     fillModels();await render(false);
 
     form.onsubmit=async e=>{
@@ -133,7 +133,7 @@
       if(!String(data.razao_social||'').trim())return PF.toast('Informe a razão social / nome do cliente.','err');
       const resumo=data.mensal_valor?`${PF.brl(data.mensal_valor)}/mês`:data.valor_total?PF.brl(data.valor_total):'';
       const body2={kind:F.kind.value,model:F.model.value,company:data.razao_social,document:data.documento||'',contact_name:data.representante||'',phone:data.telefone||'',email:data.email_socio||'',
-        segment:lead?.segment||contract?.segment||'',value:resumo,term:data.modalidade||'',data};
+        segment:lead?.segment||contract?.segment||'',value:resumo,term:data.modalidade||'',amount_cents:amountCents??contract?.amount_cents??0,data};
       const btns=m.el.querySelectorAll('.modal-foot .btn');btns.forEach(b=>b.disabled=true);
       try{
         let id=contract?.id;

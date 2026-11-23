@@ -29,6 +29,7 @@ ALTER TABLE leads ADD COLUMN conversion_at integer;
 ALTER TABLE leads ADD COLUMN attribution_raw text NOT NULL DEFAULT '{}';
 --> statement-breakpoint
 CREATE INDEX leads_attribution_campaign ON leads(platform, campaign_name, ad_name);
+--> statement-breakpoint
 CREATE TABLE lead_reference_codes (
   id text PRIMARY KEY NOT NULL,
   code text NOT NULL,

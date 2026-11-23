@@ -12,7 +12,7 @@ export async function GET(req:Request){
   const db=database(),hoje=new Date().toISOString().slice(0,10),now=Date.now();
   const has=(a:string)=>u.admin||u.areas.includes(a);
   const out:Aviso[]=[];
-  const page=(stage:string)=>({copy:'copy.html',design:'design.html',revisao:'revisao.html',cliente:'revisao.html'} as any)[stage]||'gestao.html';
+  const page=(stage:string)=>({copy:'copy.html',video:'design.html',design:'design.html',revisao:'revisao.html',cliente:'revisao.html'} as any)[stage]||'gestao.html';
   const tasksOn=['gestao','copy','design','revisao'].some(has);
 
   if(tasksOn){
@@ -23,7 +23,7 @@ export async function GET(req:Request){
     for(const t of late)out.push({level:'alerta',icon:'alarm-clock',title:`Atrasada: ${t.title}`,body:`${t.client} · prazo era ${t.due_date.split('-').reverse().join('/')}`,href:`${page(t.stage)}?tarefa=${t.id}`});
     // Voltaram para mim com ajuste
     const adj=(await db.prepare(`SELECT t.id,t.title,t.stage,c.name AS client,(SELECT reason FROM task_history h WHERE h.task_id=t.id AND h.action='ajuste' ORDER BY created_at DESC LIMIT 1) AS reason
-      FROM tasks t JOIN clients c ON c.id=t.client_id WHERE t.assignee_id=? AND t.stage IN ('copy','design')
+      FROM tasks t JOIN clients c ON c.id=t.client_id WHERE t.assignee_id=? AND t.stage IN ('copy','video','design')
       AND (SELECT action FROM task_history h WHERE h.task_id=t.id ORDER BY created_at DESC LIMIT 1)='ajuste' AND ${vis.sql} LIMIT 20`).bind(u.id,...vis.args).all()).results as any[];
     for(const t of adj)out.push({level:'alerta',icon:'rotate-ccw',title:`Ajuste pedido: ${t.title}`,body:`${t.client} · ${String(t.reason||'').slice(0,90)}`,href:`${page(t.stage)}?tarefa=${t.id}`});
     // Cliente pediu ajustes (Revisão)

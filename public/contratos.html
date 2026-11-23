@@ -30,10 +30,12 @@
 <script>
 const content=PF.shell({title:'Contratos',subtitle:'Modelos, elaboração, assinatura e acompanhamento.',crumbs:[['Clientes'],['Contratos']],search:'Buscar cliente ou contrato...',
   actions:`<button class="btn btn-primary" id="newC"><i data-lucide="plus"></i>Novo contrato</button>`});
-const ST={elab:['Em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Assinado','green'],canc:['Cancelado','pink']};
-let D={contracts:[],closed:[],owners:[]},tab='all',q='';
+const ST={dados:['Aguardando dados','orange'],elab:['Em elaboração','blue'],aguard:['Aguardando assinatura','yellow'],assin:['Assinado','green'],canc:['Cancelado / Não concluído','gray']};
+let D={contracts:[],readyLeads:[],owners:[]},tab='all',q='',kindF=sessionStorage.getItem('pf-ct-kind')||'';
 const ownerName=id=>D.owners.find(o=>o.id===id)?.name||'—';
 const fmt=ms=>ms?new Date(ms).toLocaleDateString('pt-BR'):'—';
+const age=c=>Math.floor((Date.now()-Number(c.status==='aguard'?c.sent_at||c.created_at:c.created_at||0))/86400000);
+const late=c=>['dados','aguard'].includes(c.status)&&age(c)>=3;
 
 async function load(){
   try{D=await PF.api('/api/contracts');}catch(e){PF.toast(e.message,'err');}
@@ -49,6 +51,7 @@ function actions(c){
   const temModelo=c.kind==='Gestão'||/site|website|e-?commerce|loja/i.test(c.model);
   const pdf=temModelo?`<a class="icon-btn" title="Ver PDF" href="/api/contracts/pdf?id=${c.id}" target="_blank" rel="noopener"><i data-lucide="file-text"></i></a><a class="icon-btn" title="Baixar PDF" href="/api/contracts/pdf?id=${c.id}&download=1"><i data-lucide="download"></i></a>`:'';
   const enviar=temModelo?b('send',c.status==='elab'?'Enviar ao cliente':'Reenviar',c.status==='elab'?'btn-primary':'btn-ghost','send'):(c.status==='elab'?b('mark','Marcar como enviado','btn-primary','send'):'');
+  if(c.status==='dados')return b('form-link','Reenviar link do formulário','btn-primary','link')+b('cancel','Cancelar');
   if(c.status==='elab')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('cancel','Cancelar');
   if(c.status==='aguard')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('sign','Marcar como assinado','btn-primary','check')+b('cancel','Cancelar');
   if(c.status==='assin')return pdf+(c.client_id?`<a class="btn btn-ghost btn-sm" href="clientes.html?id=${c.client_id}"><i data-lucide="contact"></i>Ver cliente</a>`:'');
@@ -67,34 +70,49 @@ function sendMenu(c){
 }
 
 function render(){
-  const n=k=>D.contracts.filter(c=>c.status===k).length;
-  const list=D.contracts.filter(c=>(tab==='all'||c.status===tab)&&(!q||(c.company+' '+c.model+' '+c.contact_name).toLowerCase().includes(q)));
+  const byKind=D.contracts.filter(c=>!kindF||c.kind===kindF);
+  const n=k=>byKind.filter(c=>c.status===k).length;
+  const list=byKind.filter(c=>(tab==='all'||c.status===tab)&&(!q||(c.company+' '+c.model+' '+c.contact_name).toLowerCase().includes(q)));
+  const pending=D.contracts.filter(late);
   content.innerHTML=`
-  ${D.closed.length?`<div class="note mb"><i data-lucide="bell-ring"></i><div><b>${D.closed.length} lead(s) fechado(s) sem contrato:</b> ${D.closed.map(l=>PF.esc(l.company)).join(', ')}. <a class="link" href="#" id="fromLead">Gerar contrato agora</a></div></div>`:''}
+  ${D.readyLeads.length?`<div class="note mb"><i data-lucide="bell-ring"></i><div><b>${D.readyLeads.length} oportunidade(s) aguardando contrato:</b> ${D.readyLeads.map(l=>PF.esc(l.company)).join(', ')}. <a class="link" href="#" id="fromLead">Gerar contrato agora</a></div></div>`:''}
+  ${pending.length?`<div class="note crm-alert mb"><i data-lucide="bell-ring"></i><div><b>Contratos pendentes há 3 dias ou mais</b><div class="small">${pending.map(c=>`${PF.esc(c.company)} · ${PF.esc(ST[c.status]?.[0]||c.status)} há ${age(c)} dias`).join(' · ')}</div></div></div>`:''}
   <section class="grid g2 mb">
     ${[['g','Gestão','users','purple','Contratos para serviços recorrentes de marketing, como gestão de redes sociais, conteúdo, tráfego e presença digital.'],['p','Projetos','laptop','orange','Contratos para implementação de projetos como websites, e-commerce, identidade visual e outros.']].map(([k,t,i,c,d])=>`
-    <div class="card type ${k} fade"><div><div class="ico c-${c}"><i data-lucide="${i}"></i></div><h2>${t}</h2><p>${d}</p></div>
+    <div class="card type ${k} fade" data-kind="${t}" style="cursor:pointer;${kindF===t?'outline:2px solid var(--orange)':''}" title="Filtrar contratos de ${t}"><div><div class="ico c-${c}"><i data-lucide="${i}"></i></div><h2>${t}</h2><p>${d}</p></div>
       <ul><small>Principais modelos:</small>${PF.contractModels[t].map(m=>`<li><i data-lucide="file-text"></i>${m}</li>`).join('')}</ul></div>`).join('')}
   </section>
   <div class="card mb">
-    <div class="card-head"><h2>Contratos</h2></div>
-    <div class="tabs">${[['all','Todos',D.contracts.length],['elab','Em elaboração',n('elab')],['aguard','Aguardando assinatura',n('aguard')],['assin','Assinados',n('assin')],['canc','Cancelados',n('canc')]].map(([k,l,c])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${c}</span></button>`).join('')}</div>
+    <div class="card-head"><h2>Contratos</h2><div class="toggle">${[['','Todos'],['Gestão','Contratos Gestão'],['Projetos','Contratos Projetos']].map(([k,l])=>`<button data-k="${k}" class="${kindF===k?'on':''}">${l}<span class="count">${D.contracts.filter(c=>!k||c.kind===k).length}</span></button>`).join('')}</div></div>
+    <div class="tabs">${[['all','Todos',byKind.length],['dados','Aguardando dados',n('dados')],['elab','Em elaboração',n('elab')],['aguard','Aguardando assinatura',n('aguard')],['assin','Assinados',n('assin')],['canc','Cancelados / Não concluídos',n('canc')]].map(([k,l,c])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${c}</span></button>`).join('')}</div>
     ${list.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>Cliente</th><th>Tipo</th><th>Modelo</th><th>Valor</th><th>Status</th><th>Responsável</th><th>Envio</th><th class="right">Ações</th></tr></thead><tbody>
     ${list.map(c=>`<tr><td><div class="who">${PF.chip(c.company)}<div><b>${PF.esc(c.company)}</b><small>${PF.esc(c.segment||c.contact_name||'—')}</small></div></div></td><td>${c.kind}</td><td>${PF.esc(c.model)}</td><td class="nowrap">${PF.esc(c.value||'—')}</td>
       <td>${PF.badge(...ST[c.status])}</td><td><div class="row">${PF.avatar(ownerName(c.owner_id))}${PF.esc(ownerName(c.owner_id))}</div></td><td>${fmt(c.sent_at)}</td><td><div class="acts">${actions(c)}</div></td></tr>`).join('')}
-    </tbody></table></div>`:`<div class="empty"><i data-lucide="file-text"></i><div>Nenhum contrato aqui ainda. Gere a partir de um lead em <a class="link" href="comercial.html">Comercial → Fechado</a>.</div></div>`}
+    </tbody></table></div>`:`<div class="empty"><i data-lucide="file-text"></i><div>Nenhum contrato aqui ainda. Gere a partir de uma oportunidade em <a class="link" href="comercial.html">Comercial → Aguardando contrato</a>.</div></div>`}
   </div>
-  <div class="card"><div class="card-head"><div><h2>Fluxo do contrato</h2><p>Do fechamento no CRM ao cadastro do cliente.</p></div></div>
-    <div class="flow">${[['handshake','Negociação fechada','No Comercial, coluna Fechado: "Gerar contrato".'],['file-text','Selecionar modelo','Escolhe o modelo de Gestão ou Projetos.'],['pencil','Preencher contrato','Dados do cliente já vêm do cadastro do lead, editáveis.'],['send','Enviar para assinatura','O contrato vai para "Aguardando assinatura".'],['check-check','Contrato assinado','"Marcar como assinado" cria o cliente automaticamente.'],['users','Cliente ativo','O cliente aparece em Clientes, pronto para o onboarding.']].map(([i,t,d],k,a)=>`<div class="step"><div class="row"><span class="n">${k+1}</span><i data-lucide="${i}"></i></div><b>${t}</b><p>${d}</p></div>${k<a.length-1?'<i data-lucide="arrow-right" class="arrow"></i>':''}`).join('')}</div>
+  <div class="card"><div class="card-head"><div><h2>Fluxo do contrato</h2><p>Da oportunidade aceita à confirmação do cliente.</p></div></div>
+    <div class="flow">${[['handshake','Oportunidade aceita','No Comercial, clique em "Gerar contrato". A oportunidade vai para Aguardando contrato.'],['file-text','Selecionar modelo','Escolhe o modelo de Gestão ou Projetos.'],['pencil','Preencher contrato','Dados do cliente já vêm do cadastro do lead, editáveis.'],['send','Enviar para assinatura','O contrato vai para "Aguardando assinatura".'],['check-check','Contrato assinado','"Marcar como assinado" confirma a assinatura e fecha a oportunidade.'],['users','Cliente ativo','O cliente aparece em Clientes, pronto para o onboarding.']].map(([i,t,d],k,a)=>`<div class="step"><div class="row"><span class="n">${k+1}</span><i data-lucide="${i}"></i></div><b>${t}</b><p>${d}</p></div>${k<a.length-1?'<i data-lucide="arrow-right" class="arrow"></i>':''}`).join('')}</div>
   </div>`;
   PF.icons();
   content.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();});
-  const fl=content.querySelector('#fromLead');if(fl)fl.onclick=e=>{e.preventDefault();PF.contractForm({closed:D.closed,onDone:load});};
+  const setKind=k=>{kindF=k;sessionStorage.setItem('pf-ct-kind',k);render();};
+  content.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>setKind(b.dataset.k));
+  content.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>setKind(kindF===b.dataset.kind?'':b.dataset.kind));
+  const fl=content.querySelector('#fromLead');if(fl)fl.onclick=e=>{e.preventDefault();PF.contractForm({readyLeads:D.readyLeads,onDone:load});};
   content.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
     const c=D.contracts.find(x=>x.id===b.dataset.id),a=b.dataset.a;
     if(a==='edit')return PF.contractForm({contract:c,onDone:load});
     if(a==='send')return sendMenu(c);
     if(a==='mark')return act(c.id,'send',{},'Contrato marcado como enviado.');
+    if(a==='form-link'){
+      PF.api('/api/contracts',{method:'PATCH',body:{id:c.id,action:'form-link'}}).then(async r=>{
+        const modal=PF.modal(`<div class="modal-head"><div><h3>Link do formulário</h3><p class="muted small">${PF.esc(c.company)} · válido por 30 dias.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+          <div class="row"><input class="input" readonly value="${PF.esc(r.url)}"><button class="btn btn-primary" id="copyFormLink">Copiar</button></div>`);
+        modal.el.querySelector('#copyFormLink').onclick=async()=>{try{await navigator.clipboard.writeText(r.url);PF.toast('Link copiado.','ok');}catch{window.prompt('Copie o link:',r.url);}};
+        await load();
+      }).catch(e=>PF.toast(e.message,'err'));
+      return;
+    }
     if(a==='cancel'){const r=prompt('Motivo do cancelamento:');if(r)act(c.id,'cancel',{reason:r},'Contrato cancelado.');return;}
     if(a==='sign'){
       if(!confirm(`Confirmar que ${c.company} assinou o contrato?\n\nO cliente será criado automaticamente em Clientes com os dados do cadastro.`))return;
@@ -102,7 +120,7 @@ function render(){
     }
   });
 }
-document.getElementById('newC').onclick=()=>PF.contractForm({closed:D.closed,onDone:load});
+document.getElementById('newC').onclick=()=>PF.contractForm({readyLeads:D.readyLeads,onDone:load});
 document.getElementById('globalSearch').oninput=e=>{q=e.target.value.toLowerCase();render();};
 render();load();
 </script>

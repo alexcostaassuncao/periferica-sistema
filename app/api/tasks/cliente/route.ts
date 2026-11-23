@@ -1,6 +1,7 @@
 import {database} from '../../../../db/raw';
 import {sha256} from '../../../../lib/session';
 import {logTask} from '../../../../db/tarefas';
+import {taskApproved} from '../../../../db/ciclos';
 
 // Página de aprovação do cliente (sem login). Mostra SÓ a entrega atual, a legenda e a mensagem da equipe.
 // Briefing, histórico, comentários internos e versões antigas nunca saem daqui.
@@ -28,6 +29,7 @@ export async function POST(req:Request){
   if(p.decision==='aprovar'){
     await db.prepare("UPDATE tasks SET stage='aprovada',client_status='aprovada',client_feedback=?,updated_at=? WHERE id=? AND stage='cliente'").bind(comment,now,t.id).run();
     await logTask(t.id,null,'aprovada',{from:'cliente',to:'aprovada',reason:comment||'Aprovado pelo cliente no link.'});
+    await taskApproved(t.id);
     return json({ok:true});
   }
   if(p.decision==='ajustes'){

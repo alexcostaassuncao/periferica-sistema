@@ -6,7 +6,7 @@ import {AREA_KEYS,pageAllowed} from './lib/access';
 // Protege o sistema inteiro: sem login, páginas redirecionam para /login.html e APIs respondem 401.
 // O usuário logado é repassado às rotas pelos cabeçalhos x-pf-* (sempre recriados aqui, nunca aceitos do navegador).
 
-const PUBLIC_PATHS=new Set(['/login.html','/api/auth/login','/api/auth/logout','/api/publications/run','/privacidade.html','/api/auth/forgot','/api/auth/reset','/redefinir-senha.html','/api/contracts/file','/formulario.html','/api/leads/intake','/aprovacao.html','/api/tasks/cliente']);
+const PUBLIC_PATHS=new Set(['/login.html','/api/auth/login','/api/auth/logout','/api/publications/run','/api/ciclos/run','/api/ciclos/grade','/grade.html','/privacidade.html','/api/auth/forgot','/api/auth/reset','/redefinir-senha.html','/api/contracts/file','/api/contracts/data','/formulario.html','/api/leads/intake','/aprovacao.html','/api/tasks/cliente']);
 const PUBLIC_ASSET=/\.(js|css|svg|png|jpg|jpeg|webp|ico|woff2?)$/i;
 const IDENTITY_HEADERS=['x-pf-user-id','x-pf-user-email','x-pf-user-name','x-pf-admin','x-pf-access','x-pf-areas','x-pf-squads'];
 const ATTRIBUTION_COOKIE='pf-lead-attribution';

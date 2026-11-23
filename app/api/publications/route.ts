@@ -19,7 +19,16 @@ export async function GET(req:Request){
   const ids=pubs.map(p=>p.id);
   const targets=ids.length?(await db.prepare(`SELECT id,publication_id,account_id,network,status,permalink,error,updated_at FROM publication_targets WHERE publication_id IN (${ids.map(()=>'?').join(',')})`).bind(...ids).all()).results as any[]:[];
   const scheduler=!!await db.prepare("SELECT id FROM app_state WHERE id='publication-scheduler'").first();
-  return json({schedulerReady:scheduler,publications:pubs.map(p=>({...p,media:JSON.parse(p.media),targets:targets.filter(t=>t.publication_id===p.id)}))});
+  // Fila de publicação: entregas aprovadas que ainda não viraram publicação (com o arquivo, a legenda e a data aprovados).
+  const ready=(await db.prepare(`SELECT t.id,t.client_id,c.name AS client_name,t.title,t.caption,t.format,t.category,t.publish_date,t.done_at,
+      (SELECT url FROM task_versions v WHERE v.task_id=t.id ORDER BY version DESC LIMIT 1) AS url,
+      (SELECT kind FROM task_versions v WHERE v.task_id=t.id ORDER BY version DESC LIMIT 1) AS kind
+    FROM tasks t JOIN clients c ON c.id=t.client_id
+    WHERE t.stage='aprovada' AND NOT EXISTS (SELECT 1 FROM publications p WHERE p.task_id=t.id)
+      AND EXISTS (SELECT 1 FROM task_versions v WHERE v.task_id=t.id)
+      AND (t.publish_date='' OR t.publish_date>=date('now','-15 day'))
+    ORDER BY CASE WHEN t.publish_date='' THEN 1 ELSE 0 END,t.publish_date LIMIT 200`).all()).results;
+  return json({schedulerReady:scheduler,ready,publications:pubs.map(p=>({...p,media:JSON.parse(p.media),targets:targets.filter(t=>t.publication_id===p.id)}))});
 }
 
 // Cria uma publicação: mode=now publica na hora; mode=schedule entra na fila para o horário escolhido.
@@ -54,10 +63,13 @@ export async function POST(req:Request){
     const accounts=(await db.prepare(`SELECT id,network FROM social_accounts WHERE client_id=? AND network IN (${networks.map(()=>'?').join(',')})`).bind(client.id,...networks).all()).results as any[];
     const missing=networks.filter(n=>!accounts.some(a=>a.network===n));
     if(missing.length)throw Error('Conecte '+missing.map(n=>n==='facebook'?'a Página do Facebook':'o Instagram').join(' e ')+' deste cliente em Configurações → Redes sociais.');
+    // Publicação de uma entrega aprovada (fila de Publicações): só tarefas aprovadas do mesmo cliente.
+    const taskId=p.taskId?String(p.taskId):null;
+    if(taskId&&!await db.prepare("SELECT id FROM tasks WHERE id=? AND client_id=? AND stage='aprovada'").bind(taskId,client.id).first())throw Error('A entrega escolhida não está aprovada para este cliente.');
     const id=crypto.randomUUID(),now=Date.now();
     await db.batch([
-      db.prepare('INSERT INTO publications (id,client_id,title,caption,format,media,due_at,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-        .bind(id,client.id,String(p.title||'').slice(0,140),caption,format,JSON.stringify(media),dueAt,user.name||user.email,now,now),
+      db.prepare('INSERT INTO publications (id,client_id,title,caption,format,media,due_at,created_by,created_at,updated_at,task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+        .bind(id,client.id,String(p.title||'').slice(0,140),caption,format,JSON.stringify(media),dueAt,user.name||user.email,now,now,taskId),
       ...accounts.map(a=>db.prepare("INSERT INTO publication_targets (id,publication_id,account_id,network,status,updated_at) VALUES (?,?,?,?,'queued',?)").bind(crypto.randomUUID(),id,a.id,a.network,now)),
     ]);
     if(p.mode==='now')await processPublication(id);

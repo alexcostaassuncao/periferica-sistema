@@ -8,6 +8,7 @@ export async function GET(req:Request){
   const q=new URL(req.url).searchParams;
   const c:any=await database().prepare('SELECT * FROM contracts WHERE id=?').bind(q.get('id')).first();
   if(!c)return Response.json({error:'Contrato não encontrado.'},{status:404});
+  if(c.status==='dados')return Response.json({error:'O contrato ainda aguarda os dados do cliente.'},{status:409});
   try{
     const pdf=await gerarPdf(c);
     return new Response(Buffer.from(pdf),{headers:{'Content-Type':'application/pdf','Cache-Control':'no-store',
