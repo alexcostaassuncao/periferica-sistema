@@ -165,26 +165,41 @@ function dashboardHTML(visible){
       </tbody></table></section></div>
   </section>`;
 }
-// Filtros e período ficam no topo, acima do painel. Nada muda até clicar em "Aplicar filtros".
-function filtersHTML(productOptions,years,months){
-  const changed=draftChanged(),n=activeCount();
+// Período no topo do painel; os demais filtros ficam abaixo do painel, junto do funil.
+// Nos dois blocos nada muda até clicar em "Aplicar".
+const PERIOD_KEYS=['from','to','month','year'],OTHER_KEYS=['src','seg','owner','product','stage'];
+const changedIn=keys=>keys.some(k=>draft[k]!==filters[k]);
+const pendingTag=(id,keys)=>`<span class="small" id="${id}" style="color:var(--yellow)" ${changedIn(keys)?'':'hidden'}>Alterações ainda não aplicadas</span>`;
+function periodHTML(years,months){
+  const n=PERIOD_KEYS.filter(k=>filters[k]).length;
   return `<section class="card mb">
-    <div class="row between wrap" style="gap:8px"><div><b>Período e filtros</b>${n?` <span class="count">${n} aplicado(s)</span>`:''}</div>
-      <div class="row" style="gap:8px"><span class="small" id="fPending" style="color:var(--yellow)" ${changed?'':'hidden'}>Alterações ainda não aplicadas</span>
-        <a class="link small" href="#" id="fClear">Limpar</a>
-        <button class="btn btn-primary btn-sm" id="fApply" ${changed?'':'disabled'}><i data-lucide="filter"></i>Aplicar filtros</button></div></div>
+    <div class="row between wrap" style="gap:8px"><div><b>Período</b>${n?' <span class="count">aplicado</span>':''}</div>
+      <div class="row" style="gap:8px">${pendingTag('pPending',PERIOD_KEYS)}
+        <a class="link small" href="#" id="pClear">Limpar</a>
+        <button class="btn btn-primary btn-sm" id="pApply" ${changedIn(PERIOD_KEYS)?'':'disabled'}><i data-lucide="calendar-check"></i>Aplicar período</button></div></div>
     <div class="crm-filters">
       <label class="field"><span>De</span><input class="input" type="date" id="fFrom" value="${draft.from}"></label>
       <label class="field"><span>Até</span><input class="input" type="date" id="fTo" value="${draft.to}"></label>
       ${PF.select('fMonth','Mês',[['','Mês: todos'],...months])}
       ${PF.select('fYear','Ano',[['','Ano: todos'],...years.map(year=>[String(year),String(year)])])}
+    </div>
+    <p class="muted tiny">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · aceites pela geração do primeiro contrato · fechamentos pela assinatura de todos os contratos obrigatórios.</p>
+  </section>`;
+}
+function filtersHTML(productOptions){
+  const n=OTHER_KEYS.filter(k=>filters[k]).length;
+  return `<section class="card mb">
+    <div class="row between wrap" style="gap:8px"><div><b>Filtros</b>${n?` <span class="count">${n} aplicado(s)</span>`:''}</div>
+      <div class="row" style="gap:8px">${pendingTag('fPending',OTHER_KEYS)}
+        <a class="link small" href="#" id="fClear">Limpar</a>
+        <button class="btn btn-primary btn-sm" id="fApply" ${changedIn(OTHER_KEYS)?'':'disabled'}><i data-lucide="filter"></i>Aplicar filtros</button></div></div>
+    <div class="crm-filters">
       ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
       ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.segment).filter(Boolean))].map(s=>[s,s])])}
       ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
       ${PF.select('fProduct','Produto / serviço',[['','Produto: todos'],...productOptions.map(name=>[name,name])])}
       ${PF.select('fStage','Etapa',[['','Etapa: todas'],...STAGES.map(([key,label])=>[key,label])])}
     </div>
-    <p class="muted tiny">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · aceites pela geração do primeiro contrato · fechamentos pela assinatura de todos os contratos obrigatórios.</p>
   </section>`;
 }
 
@@ -219,8 +234,9 @@ function render(){
   const currentYear=new Date().getFullYear(),years=[...new Set([currentYear,...leads.map(l=>new Date(Number(l.created_at)).getFullYear())])].sort((a,b)=>b-a);
   const months=[['1','Janeiro'],['2','Fevereiro'],['3','Março'],['4','Abril'],['5','Maio'],['6','Junho'],['7','Julho'],['8','Agosto'],['9','Setembro'],['10','Outubro'],['11','Novembro'],['12','Dezembro']];
   content.innerHTML=`
-  ${filtersHTML(productOptions,years,months)}
+  ${periodHTML(years,months)}
   ${dashboardHTML(active)}
+  ${filtersHTML(productOptions)}
   <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).filter(match).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
   <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
@@ -247,14 +263,20 @@ function render(){
   if(clearKpi)clearKpi.onclick=()=>{dashboardIds=null;dashboardMetric='';render();};
   content.querySelectorAll('[data-product-filter]').forEach(row=>row.onclick=()=>{filters.product=row.dataset.productFilter;refreshFilters();});
   content.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{e.preventDefault();openLead(leads.find(l=>l.id===b.dataset.open));});
-  // Montar os filtros não recarrega nada: só o botão "Aplicar filtros" atualiza o painel e o funil.
-  const applyBtn=content.querySelector('#fApply'),note=()=>{const c=draftChanged();applyBtn.disabled=!c;content.querySelector('#fPending').hidden=!c;};
+  // Montar período/filtros não recarrega nada: só os botões "Aplicar" atualizam o painel e o funil.
+  const note=()=>{for(const [btn,tag,keys] of [['#pApply','#pPending',PERIOD_KEYS],['#fApply','#fPending',OTHER_KEYS]]){const c=changedIn(keys);content.querySelector(btn).disabled=!c;content.querySelector(tag).hidden=!c;}};
   for(const [id,key] of [['fSrc','src'],['fSeg','seg'],['fOwner','owner'],['fMonth','month'],['fYear','year'],['fProduct','product'],['fStage','stage'],['fFrom','from'],['fTo','to']]){
     const el=content.querySelector('#'+id);el.value=draft[key];
     const upd=()=>{draft[key]=el.value;note();};el.onchange=upd;if(el.type==='date')el.oninput=upd;
   }
-  applyBtn.onclick=()=>{if(draft.from&&draft.to&&draft.to<draft.from)return PF.toast('A data final não pode ser antes da inicial.','err');filters={...draft};refreshFilters();};
-  content.querySelector('#fClear').onclick=e=>{e.preventDefault();filters={...EMPTY_FILTERS};refreshFilters();};
+  // Cada "Aplicar" aplica só o seu bloco; o que foi mexido no outro bloco continua pendente.
+  const apply=keys=>{const pend=Object.fromEntries(Object.keys(EMPTY_FILTERS).filter(k=>!keys.includes(k)).map(k=>[k,draft[k]]));
+    for(const k of keys)filters[k]=draft[k];refreshFilters().then(()=>{Object.assign(draft,pend);render();});};
+  content.querySelector('#pApply').onclick=()=>{if(draft.from&&draft.to&&draft.to<draft.from)return PF.toast('A data final não pode ser antes da inicial.','err');apply(PERIOD_KEYS);};
+  content.querySelector('#fApply').onclick=()=>apply(OTHER_KEYS);
+  const clear=keys=>{for(const k of keys){filters[k]='';draft[k]='';}apply(keys);};
+  content.querySelector('#pClear').onclick=e=>{e.preventDefault();clear(PERIOD_KEYS);};
+  content.querySelector('#fClear').onclick=e=>{e.preventDefault();clear(OTHER_KEYS);};
   if(tab==='andamento'){
     PF.kanban(content.querySelector('.kanban'),(id,col)=>{
       const l=leads.find(x=>x.id===id);if(!l||l.stage===col)return;
