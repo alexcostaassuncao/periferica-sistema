@@ -24,7 +24,7 @@
 const content=PF.shell({title:'Cadastros',subtitle:'Clientes, produtos e serviços, usuários, contratos e mais.',crumbs:[['Cadastros']],search:false});
 const esc=PF.esc;
 const CARDS=[
-  ['produtos','package','orange','Produtos e serviços','Planos de Gestão e tipos de Projeto usados no Comercial, nas propostas e nos contratos.','#produtos'],
+  ['produtos','package','orange','Produtos e serviços','Catálogo compartilhado pelo site de contato e pelo Comercial.','#produtos'],
   ['clientes','contact','blue','Clientes','Ficha completa: contratos, serviços, equipe, documentos, histórico e cofre de senhas.','clientes.html'],
   ['contratos','file-signature','purple','Contratos','Modelos de Gestão e Projetos, elaboração, envio e assinatura.','contratos.html'],
   ['usuarios','user-cog','green','Usuários','Equipe, perfis de acesso, áreas liberadas e carteiras.','equipe.html'],
@@ -38,15 +38,16 @@ async function render(){
     <div class="top"><div class="ico c-${color}"><i data-lucide="${icon}"></i></div>${href?'<i data-lucide="chevron-right" class="muted"></i>':PF.badge('Em breve','gray')}</div>
     <b>${title}</b><p>${desc}</p>${href?'</a>':'</div>'}`).join('')}</section>
   <div class="card mb" id="produtos"><div class="card-head"><div><h2>Produtos e serviços</h2><p>É a lista que aparece para escolher no Comercial (lead e proposta) e no site. Os valores da proposta são definidos em cada oportunidade.</p></div></div>
-    ${C?`<h3 class="small" style="margin:6px 0 8px">Gestão (planos)</h3>
+    ${C?`<div class="grid g3">${[['gestao','Gestão e tráfego','purple'],['projeto','Sites, e-commerce e branding','blue'],['outro','Outros serviços','orange']].map(([key,title,color])=>`
+      <section class="card flat"><b>${title}</b><div class="row wrap" style="gap:8px;margin-top:10px">${(C.catalog[key]||[]).map(n=>PF.badge(n,color)).join('')}</div></section>`).join('')}</div>
+    <details class="card flat" style="margin-top:14px"><summary class="small" style="cursor:pointer;font-weight:600">Modelos de contrato de Gestão (detalhes e preços)</summary>
+    <h3 class="small" style="margin:12px 0 8px">Planos disponíveis</h3>
     <div class="table-wrap"><table class="tbl"><thead><tr><th>Plano</th><th>Inclui</th><th>Investimento mínimo em anúncios</th><th>Implantação / mensalidade</th></tr></thead><tbody>
       ${C.plans.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td class="small">${[p.trafego&&'Tráfego pago',p.social&&'Social media'].filter(Boolean).join(' + ')||'—'}</td>
         <td class="small">${p.investMin?brl(p.investMin)+'/mês':'—'}</td>
         <td class="small">${p.precos.length?p.precos.map(x=>`<div class="price">${esc(x.modalidade)}: ${x.implantacao?brl(x.implantacao)+' + ':''}${brl(x.mensal)}/mês</div>`).join(''):'Definido na proposta'}</td></tr>`).join('')}
-    </tbody></table></div>
-    <h3 class="small" style="margin:16px 0 8px">Projetos</h3>
-    <div class="row wrap" style="gap:8px">${C.catalog.projeto.map(n=>PF.badge(n,'blue')).join('')}</div>
-    <p class="muted tiny" style="margin-top:14px">Para incluir ou mudar um produto desta lista, fale com o desenvolvedor (a edição por aqui vem em seguida).</p>`
+    </tbody></table></div></details>
+    <p class="muted tiny" style="margin-top:14px">Para incluir ou alterar serviços do catálogo, fale com o desenvolvedor.</p>`
     :'<div class="empty"><i data-lucide="package-open"></i><div>Não foi possível carregar o catálogo.</div></div>'}</div>`;
   PF.icons();
   if(location.hash==='#produtos')document.getElementById('produtos').scrollIntoView({block:'start'});
