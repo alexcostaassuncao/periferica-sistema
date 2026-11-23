@@ -48,6 +48,9 @@
   .crm-products .report-table td:last-child,.crm-products .report-table th:last-child{text-align:right}
   .crm-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:12px 0 8px}
   .crm-filters .field{min-width:0}
+  .crm-detail{padding:14px;border-color:var(--orange)}
+  .crm-sub>td{background:var(--panel-3);padding:10px 12px !important}
+  .crm-sub .report-table{font-size:12px}
   .crm-top{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:stretch}
   .crm-bar{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
   .crm-bar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -164,6 +167,24 @@ function contractsSummary(l){
   if(contracts.length>2)labels.push(`+${contracts.length-2}`);
   return labels.join(' · ');
 }
+// Lista completa por trás de um número do resumo (ou de um produto). Clicar na empresa abre a oportunidade.
+let expandedProduct='';
+const fdate=ms=>ms?new Date(Number(ms)).toLocaleDateString('pt-BR'):'—';
+const METRIC_DATE={leadsReceived:['Recebido em',l=>l.conversion_at||l.created_at],proposals:['Proposta enviada em',l=>l.proposal_sent_at],
+  closed:['Fechado em',l=>l.signed_at],lost:['Perdido em',l=>l.lost_at],product:['Entrada',l=>l.conversion_at||l.created_at]};
+function leadsTable(ids,metric,productName=''){
+  const rows=ids.map(id=>leads.find(l=>l.id===id)).filter(Boolean);
+  if(!rows.length)return '<p class="muted small" style="margin:6px 0">Nenhuma oportunidade.</p>';
+  const [dLabel,dOf]=METRIC_DATE[metric]||METRIC_DATE.product;
+  const value=l=>{const p=productName?(l.products||[]).filter(x=>x.name===productName):(l.products||[]);return brlCents(productTotal(p));};
+  return `<div class="table-wrap"><table class="report-table"><thead><tr><th>Empresa</th><th>Contato</th><th>Origem</th><th>Produto / serviço</th>${canViewValues?'<th class="right">Valor</th>':''}<th>Etapa</th><th>${dLabel}</th><th>Responsável</th></tr></thead><tbody>
+    ${rows.map(l=>`<tr><td><a class="link" href="#" data-open="${l.id}"><b>${PF.esc(l.company)}</b></a><div class="muted tiny">${PF.esc(l.segment||'')}</div></td>
+      <td>${PF.esc(l.contact_name||'—')}${l.phone?`<div class="muted tiny">${PF.esc(l.phone)}</div>`:''}</td><td>${PF.esc(l.source||'—')}</td>
+      <td>${PF.esc((l.products||[]).map(p=>p.name).join(', ')||'—')}</td>${canViewValues?`<td class="right nowrap">${value(l)}</td>`:''}
+      <td>${PF.esc(stageLabel(l.stage))}${metric==='lost'&&l.loss_reason?`<div class="muted tiny">${PF.esc(l.loss_reason)}</div>`:''}${l.situation!=='andamento'?`<div class="muted tiny">${l.situation==='espera'?'em espera':'arquivado'}</div>`:''}</td>
+      <td class="nowrap">${fdate(dOf(l))}</td><td>${PF.esc(ownerName(l.owner_id)||'—')}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
 function dashboardHTML(visible){
   const data=dashboardData;
   if(!data)return '';
@@ -188,14 +209,21 @@ function dashboardHTML(visible){
     return PF.kpi({icon,color,value:String(n),delta,deltaKind:kind,label,sub:money+(R.cmp||R.label||''),click:key,active:dashboardMetric===key});
   }).join('');
   const alerts=visible.flatMap(lead=>(lead.contracts||[]).filter(pendingContract).map(contract=>({lead,contract,days:contractAge(contract)})));
+  const sel=metrics.find(m=>m[0]===dashboardMetric);
   return `<section class="crm-dashboard">
     <div class="grid g4">${cards}</div>
-    ${dashboardMetric?`<button class="btn btn-ghost btn-sm" data-clear-kpi>Limpar seleção do indicador</button>`:''}
+    ${sel?`<section class="card crm-detail fade"><div class="row between wrap" style="gap:8px;margin-bottom:8px">
+        <div><b>${sel[1]}</b> <span class="count">${data[sel[0]]?.count||0}</span><div class="muted tiny">${filters.from||filters.to?'No período escolhido':'Neste mês'} · o funil abaixo também fica filtrado por este indicador</div></div>
+        <button class="btn btn-ghost btn-sm" data-clear-kpi><i data-lucide="x"></i>Fechar</button></div>
+      ${leadsTable(data[sel[0]]?.ids||[],sel[0])}</section>`:''}
     ${alerts.length?`<div class="note crm-alert"><i data-lucide="bell-ring"></i><div><b>Contratos pendentes há 3 dias ou mais</b>
       <div class="small">${alerts.map(({lead,contract,days})=>`<a class="link" href="#" data-open="${lead.id}">${PF.esc(lead.company)}</a> · ${PF.esc(contractLabel(contract.status))} há ${days} dias`).join(' · ')}</div></div></div>`:''}
     <div><section class="card crm-products"><b>Oportunidades por produto / serviço</b>
       <table class="report-table"><thead><tr><th>Produto / serviço</th><th>Oportunidades</th>${canViewValues?'<th>Valor envolvido</th>':''}</tr></thead><tbody>
-      ${data.byProduct.length?data.byProduct.map(item=>`<tr data-product-filter="${PF.esc(item.name)}" style="cursor:pointer"><td>${PF.esc(item.name)}</td><td>${item.opportunities}</td>${canViewValues?`<td>${brlCents(item.amount_cents)}</td>`:''}</tr>`).join(''):`<tr><td colspan="${canViewValues?3:2}">Sem produtos neste filtro.</td></tr>`}
+      ${data.byProduct.length?data.byProduct.map(item=>{const open=expandedProduct===item.name;
+        return `<tr data-product-toggle="${PF.esc(item.name)}" style="cursor:pointer" title="Clique para ver as oportunidades"><td><i data-lucide="${open?'chevron-down':'chevron-right'}" style="width:14px;vertical-align:-2px"></i> ${PF.esc(item.name)}</td><td>${item.opportunities}</td>${canViewValues?`<td>${brlCents(item.amount_cents)}</td>`:''}</tr>
+        ${open?`<tr class="crm-sub"><td colspan="${canViewValues?3:2}">${leadsTable(item.ids||[],'product',item.name)}
+          <a class="link small" href="#" data-product-filter="${PF.esc(item.name)}">Filtrar o funil por este produto</a></td></tr>`:''}`;}).join(''):`<tr><td colspan="${canViewValues?3:2}">Sem produtos neste filtro.</td></tr>`}
       </tbody></table></section></div>
   </section>`;
 }
@@ -289,7 +317,8 @@ function render(){
   });
   const clearKpi=content.querySelector('[data-clear-kpi]');
   if(clearKpi)clearKpi.onclick=()=>{dashboardIds=null;dashboardMetric='';render();};
-  content.querySelectorAll('[data-product-filter]').forEach(row=>row.onclick=()=>{filters.product=row.dataset.productFilter;refreshFilters();});
+  content.querySelectorAll('[data-product-toggle]').forEach(row=>row.onclick=()=>{const n=row.dataset.productToggle;expandedProduct=expandedProduct===n?'':n;render();});
+  content.querySelectorAll('[data-product-filter]').forEach(a=>a.onclick=e=>{e.preventDefault();filters.product=a.dataset.productFilter;expandedProduct='';refreshFilters();});
   content.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{e.preventDefault();openLead(leads.find(l=>l.id===b.dataset.open));});
   // Montar período/filtros não recarrega nada: só os botões "Aplicar" atualizam o painel e o funil.
   const note=()=>{for(const [btn,tag,keys] of [['#pApply','#pPending',PERIOD_KEYS],['#fApply','#fPending',OTHER_KEYS]]){const c=changedIn(keys);content.querySelector(btn).disabled=!c;content.querySelector(tag).hidden=!c;}};

@@ -62,7 +62,7 @@ export async function GET(req:Request){
     closed:{count:closed.length,ids:ids(closed)},
     conversionRate:leadsReceived.length?cohortClosed.length/leadsReceived.length:0,
     conversionRateIds:ids(leadsReceived),
-    byProduct:[...byProduct.values()].map(item=>({name:item.name,opportunities:item.opportunities.size,...(canViewValues?{amount_cents:item.amount_cents}:{})}))
+    byProduct:[...byProduct.values()].map(item=>({name:item.name,opportunities:item.opportunities.size,ids:[...item.opportunities],...(canViewValues?{amount_cents:item.amount_cents}:{})}))
       .sort((a,b)=>b.opportunities-a.opportunities||a.name.localeCompare(b.name,'pt-BR')),
     ...(canViewValues?{
       negotiationValueCents:proposalValue(negotiation),
