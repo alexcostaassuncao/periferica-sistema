@@ -36,6 +36,7 @@
       <fieldset class="cf-box"><legend>Entregas do plano (o que o plano inclui)</legend><div class="cf-grid">
         ${[['social','Social Media (posts)'],['campanha','Campanha (criativos)'],['video_organico','Vídeo orgânico (vídeos)'],['video_campanha','Vídeo de campanha (vídeos)']].map(([k,l])=>
           f('entrega_'+k+'_qtd',l,d['entrega_'+k+'_qtd']??0,{type:'number'})+f('entrega_'+k+'_freq','Frequência',d['entrega_'+k+'_freq']||'mes',{list:['mes','semana']})+'<span></span>').join('')}
+        ${f('social_na_campanha','Posts de Social Media podem ser usados na campanha?',d.social_na_campanha||'Não',{list:['Não','Sim'],full:true})}
         </div><p class="muted tiny" style="margin-top:6px">"semana" = quantidade por semana de produção (o sistema multiplica pelas semanas do mês). "mes" = quantidade fixa no mês.</p></fieldset>
       <fieldset class="cf-box"><legend>Valores e pagamento</legend><div class="cf-grid">
         ${f('implantacao_valor','Implantação (R$) — 0 = sem implantação',d.implantacao_valor)}${f('implantacao_forma','Forma',d.implantacao_forma,{list:FORMAS})}${f('implantacao_vencimento','Vencimento da implantação',d.implantacao_vencimento,{type:'date'})}

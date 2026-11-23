@@ -14,12 +14,14 @@
         <td><input class="input" type="number" min="0" max="999" data-q="${i.key}" value="${i.qty}" style="padding:7px 10px"></td>
         <td><select class="select-in" data-f="${i.key}" style="padding:7px 30px 7px 10px"><option value="mes" ${i.freq==='mes'?'selected':''}>Por mês</option><option value="semana" ${i.freq==='semana'?'selected':''}>Por semana</option></select></td></tr>`).join('')}
       </tbody></table></div>
+      <label class="row small" style="gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" class="chk" id="entSocCamp" ${D.socialInCampaign?'checked':''}>
+        Os posts de Social Media podem ser usados na campanha (impulsionados como criativos)</label>
       <div class="row between wrap" style="margin-top:10px"><span class="muted tiny">${D.items.find(i=>i.updated_by)?'Atualizado por '+esc(D.items.find(i=>i.updated_by).updated_by):'Deixe 0 nas categorias que o plano não inclui.'}</span>
       <button class="btn btn-primary btn-sm" id="entSave"><i data-lucide="save"></i>Salvar entregas</button></div>`;
     PF.icons();
     el.querySelector('#entSave').onclick=async()=>{
       const items=D.items.map(i=>({key:i.key,qty:el.querySelector(`[data-q="${i.key}"]`).value,freq:el.querySelector(`[data-f="${i.key}"]`).value}));
-      try{await PF.api('/api/clients/plan',{method:'POST',body:{action:'save',client_id:clientId,items}});PF.toast('Entregas do plano salvas.','ok');onSaved&&onSaved();}catch(e){PF.toast(e.message,'err');}
+      try{await PF.api('/api/clients/plan',{method:'POST',body:{action:'save',client_id:clientId,items,social_in_campaign:el.querySelector('#entSocCamp').checked}});PF.toast('Entregas do plano salvas.','ok');onSaved&&onSaved();}catch(e){PF.toast(e.message,'err');}
     };
   }
 
@@ -39,7 +41,8 @@
         <p class="muted tiny" style="margin:-4px 0 10px">${D.weeksCustom?`Definido por ${esc(D.weeksBy)} para ${mLabel(month)}.`:`Padrão: ${D.weeks} semanas (segundas-feiras do mês). Altere se o mês tiver outra quantidade de semanas de produção.`}</p>
         ${D.totals.length?`<div class="table-wrap"><table class="tbl"><thead><tr><th>O que o plano inclui</th><th>Frequência</th><th>Conta</th><th class="right">Total no mês</th></tr></thead><tbody>
           ${D.totals.map(t=>`<tr><td><b>${t.label}</b></td><td>${t.qty} ${un(t)} ${t.freq==='semana'?'por semana':'por mês'}</td><td class="small muted">${t.conta}</td><td class="right"><b style="font-size:16px">${t.total}</b> <span class="muted small">${ut(t)}</span></td></tr>`).join('')}
-        </tbody></table></div>${temSemanal?'':'<p class="muted tiny" style="margin-top:6px">Todas as entregas são mensais: o total não muda de um mês para o outro.</p>'}`
+        </tbody></table></div>${temSemanal?'':'<p class="muted tiny" style="margin-top:6px">Todas as entregas são mensais: o total não muda de um mês para o outro.</p>'}
+        ${D.socialInCampaign?'<div class="note info" style="margin-top:10px"><i data-lucide="megaphone"></i><div>Os posts de <b>Social Media</b> deste cliente podem ser usados na <b>campanha</b>.</div></div>':''}`
         :`<div class="empty" style="padding:18px"><i data-lucide="package-open"></i><div>As entregas do plano ainda não foram definidas.</div>${editHref?`<a class="btn btn-ghost btn-sm" href="${editHref}" style="margin-top:10px">Definir entregas</a>`:''}</div>`}`;
       PF.icons();
       el.querySelector('#mPrev').onclick=()=>{month=shift(month,-1);sessionStorage.setItem('pf-ent-mes',month);draw();};

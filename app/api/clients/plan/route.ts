@@ -15,7 +15,8 @@ export async function GET(req:Request){
   const client=q.get('client')||'';
   if(!await database().prepare('SELECT id FROM clients WHERE id=?').bind(client).first())return json({error:'Cliente não encontrado.'},404);
   const items=await deliverablesOf(client),w=await weeksOf(month);
-  return json({month,weeks:w.weeks,weeksCustom:w.custom,weeksBy:w.updated_by,items,totals:monthTotals(items,w.weeks)});
+  const c:any=await database().prepare('SELECT social_in_campaign FROM clients WHERE id=?').bind(client).first();
+  return json({month,weeks:w.weeks,weeksCustom:w.custom,weeksBy:w.updated_by,items,totals:monthTotals(items,w.weeks),socialInCampaign:!!c?.social_in_campaign});
 }
 
 export async function POST(req:Request){
@@ -36,6 +37,10 @@ export async function POST(req:Request){
       ops.push(db.prepare('INSERT INTO client_deliverables (client_id,category,qty,freq,updated_by,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(client_id,category) DO UPDATE SET qty=excluded.qty,freq=excluded.freq,updated_by=excluded.updated_by,updated_at=excluded.updated_at')
         .bind(c.id,d.key,qty,freq,u.name,now));
       if(qty)resumo.push(`${d.label}: ${qty} ${d.unit} por ${freq==='semana'?'semana':'mês'}`);
+    }
+    if(typeof p.social_in_campaign==='boolean'){
+      ops.push(db.prepare('UPDATE clients SET social_in_campaign=? WHERE id=?').bind(p.social_in_campaign?1:0,c.id));
+      resumo.push(`Posts de social media ${p.social_in_campaign?'podem':'não podem'} ser usados na campanha`);
     }
     if(!ops.length)return json({error:'Nada para salvar.'},400);
     await db.batch(ops);

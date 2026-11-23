@@ -48,6 +48,15 @@
   .crm-products .report-table td:last-child,.crm-products .report-table th:last-child{text-align:right}
   .crm-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:12px 0 8px}
   .crm-filters .field{min-width:0}
+  .crm-top{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:12px;margin-bottom:12px;align-items:stretch}
+  .crm-bar{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .crm-bar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .crm-bar-acts{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .crm-bar-fields{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .crm-bar-fields .input,.crm-bar-fields .select-in{height:38px;padding-top:6px;padding-bottom:6px;font-size:13px}
+  .crm-bar-fields input[type=date]{width:150px}
+  .crm-bar-fields .select-in{width:auto;min-width:140px;max-width:180px;flex:1}
+  @media(max-width:1100px){.crm-top{grid-template-columns:1fr}}
   .crm-filter-dates{display:contents}
   .crm-product-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr) auto;align-items:end;gap:8px}
   .crm-product-row [data-remove-product]{justify-self:end}
@@ -195,28 +204,27 @@ function dashboardHTML(visible){
 const PERIOD_KEYS=['from','to'],OTHER_KEYS=['src','owner','product','stage'];
 const changedIn=keys=>keys.some(k=>draft[k]!==filters[k]);
 const pendingTag=(id,keys)=>`<span class="small" id="${id}" style="color:var(--yellow)" ${changedIn(keys)?'':'hidden'}>Alterações ainda não aplicadas</span>`;
+// Período e filtros lado a lado, numa faixa compacta no topo (mesma altura). Cada um com seu "Aplicar".
 function periodHTML(){
   const n=PERIOD_KEYS.filter(k=>filters[k]).length;
-  return `<section class="card mb">
-    <div class="row wrap" style="gap:12px;align-items:flex-end">
-      <div style="min-width:150px"><b>Período</b>${n?' <span class="count">aplicado</span>':''}<div class="muted tiny">${n?'Resumo e funil no período escolhido.':'Sem datas: o resumo mostra o mês atual.'}</div></div>
-      <label class="field" style="width:170px"><span>De</span><input class="input" type="date" id="fFrom" value="${draft.from}"></label>
-      <label class="field" style="width:170px"><span>Até</span><input class="input" type="date" id="fTo" value="${draft.to}"></label>
-      <div class="row" style="gap:8px;margin-left:auto">${pendingTag('pPending',PERIOD_KEYS)}
-        <a class="link small" href="#" id="pClear">Limpar</a>
-        <button class="btn btn-primary btn-sm" id="pApply" ${changedIn(PERIOD_KEYS)?'':'disabled'}><i data-lucide="calendar-check"></i>Aplicar período</button></div>
+  return `<section class="card crm-bar">
+    <div class="crm-bar-head"><b>Período</b>${n?'<span class="count">aplicado</span>':'<span class="muted tiny">sem datas = mês atual</span>'}
+      <span class="crm-bar-acts">${pendingTag('pPending',PERIOD_KEYS)}<a class="link small" href="#" id="pClear">Limpar</a>
+        <button class="btn btn-primary btn-sm" id="pApply" ${changedIn(PERIOD_KEYS)?'':'disabled'}><i data-lucide="calendar-check"></i>Aplicar</button></span></div>
+    <div class="crm-bar-fields">
+      <input class="input" type="date" id="fFrom" value="${draft.from}" aria-label="De" title="De">
+      <span class="muted small">até</span>
+      <input class="input" type="date" id="fTo" value="${draft.to}" aria-label="Até" title="Até">
     </div>
-    <p class="muted tiny" style="margin-top:8px">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · fechamentos pela assinatura de todos os contratos obrigatórios · perdas pela data da perda.</p>
   </section>`;
 }
 function filtersHTML(productOptions){
   const n=OTHER_KEYS.filter(k=>filters[k]).length;
-  return `<section class="card mb">
-    <div class="row between wrap" style="gap:8px"><div><b>Filtros</b>${n?` <span class="count">${n} aplicado(s)</span>`:''}</div>
-      <div class="row" style="gap:8px">${pendingTag('fPending',OTHER_KEYS)}
-        <a class="link small" href="#" id="fClear">Limpar</a>
-        <button class="btn btn-primary btn-sm" id="fApply" ${changedIn(OTHER_KEYS)?'':'disabled'}><i data-lucide="filter"></i>Aplicar filtros</button></div></div>
-    <div class="crm-filters">
+  return `<section class="card crm-bar">
+    <div class="crm-bar-head"><b>Filtros</b>${n?`<span class="count">${n} aplicado(s)</span>`:''}
+      <span class="crm-bar-acts">${pendingTag('fPending',OTHER_KEYS)}<a class="link small" href="#" id="fClear">Limpar</a>
+        <button class="btn btn-primary btn-sm" id="fApply" ${changedIn(OTHER_KEYS)?'':'disabled'}><i data-lucide="filter"></i>Aplicar</button></span></div>
+    <div class="crm-bar-fields">
       ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
       ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
       ${PF.select('fProduct','Produto / serviço',[['','Produto: todos'],...productOptions.map(name=>[name,name])])}
@@ -254,9 +262,9 @@ function render(){
     (fromAt===null||eventDate(l)>=fromAt)&&(toAt===null||eventDate(l)<=toAt);
   const active=by('andamento').filter(match),productOptions=[...new Set(leads.flatMap(l=>(l.products||[]).map(p=>p.name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   content.innerHTML=`
-  ${periodHTML()}
+  <div class="crm-top">${periodHTML()}${filtersHTML(productOptions)}</div>
+  <p class="muted tiny" style="margin:-6px 0 12px">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · fechamentos pela assinatura de todos os contratos obrigatórios · perdas pela data da perda.</p>
   ${dashboardHTML(active)}
-  ${filtersHTML(productOptions)}
   <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).filter(match).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
   <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`

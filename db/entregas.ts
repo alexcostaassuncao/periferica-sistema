@@ -38,6 +38,9 @@ export async function saveFromContractData(clientId:string,data:any,by:string){
     ops.push(db.prepare('INSERT INTO client_deliverables (client_id,category,qty,freq,updated_by,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(client_id,category) DO UPDATE SET qty=excluded.qty,freq=excluded.freq,updated_by=excluded.updated_by,updated_at=excluded.updated_at')
       .bind(clientId,d.key,qty,freq,by,Date.now()));
   }
+  // Posts de social media podem ser usados na campanha (Sim/Não no contrato).
+  if(data?.social_na_campanha==='Sim'||data?.social_na_campanha==='Não')
+    ops.push(db.prepare('UPDATE clients SET social_in_campaign=? WHERE id=?').bind(data.social_na_campanha==='Sim'?1:0,clientId));
   if(ops.length)await db.batch(ops);
   return ops.length;
 }
