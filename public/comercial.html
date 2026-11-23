@@ -218,13 +218,6 @@ function dashboardHTML(visible){
       ${leadsTable(data[sel[0]]?.ids||[],sel[0])}</section>`:''}
     ${alerts.length?`<div class="note crm-alert"><i data-lucide="bell-ring"></i><div><b>Contratos pendentes há 3 dias ou mais</b>
       <div class="small">${alerts.map(({lead,contract,days})=>`<a class="link" href="#" data-open="${lead.id}">${PF.esc(lead.company)}</a> · ${PF.esc(contractLabel(contract.status))} há ${days} dias`).join(' · ')}</div></div></div>`:''}
-    <div><section class="card crm-products"><b>Oportunidades por produto / serviço</b>
-      <table class="report-table"><thead><tr><th>Produto / serviço</th><th>Oportunidades</th>${canViewValues?'<th>Valor envolvido</th>':''}</tr></thead><tbody>
-      ${data.byProduct.length?data.byProduct.map(item=>{const open=expandedProduct===item.name;
-        return `<tr data-product-toggle="${PF.esc(item.name)}" style="cursor:pointer" title="Clique para ver as oportunidades"><td><i data-lucide="${open?'chevron-down':'chevron-right'}" style="width:14px;vertical-align:-2px"></i> ${PF.esc(item.name)}</td><td>${item.opportunities}</td>${canViewValues?`<td>${brlCents(item.amount_cents)}</td>`:''}</tr>
-        ${open?`<tr class="crm-sub"><td colspan="${canViewValues?3:2}">${leadsTable(item.ids||[],'product',item.name)}
-          <a class="link small" href="#" data-product-filter="${PF.esc(item.name)}">Filtrar o funil por este produto</a></td></tr>`:''}`;}).join(''):`<tr><td colspan="${canViewValues?3:2}">Sem produtos neste filtro.</td></tr>`}
-      </tbody></table></section></div>
   </section>`;
 }
 // Período no topo do painel; os demais filtros ficam abaixo do painel, junto do funil.

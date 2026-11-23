@@ -69,7 +69,7 @@ function render(){
   PF.icons();
   main.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=+b.dataset.t;render();});
   main.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>{b.closest('.post').style.opacity=.4;PF.toast('Aprovado! A equipe já foi avisada.','ok');});
-  main.querySelectorAll('[data-adj]').forEach(b=>b.onclick=()=>{const t=prompt('O que você gostaria de ajustar?');if(t)PF.toast('Pedido de ajuste enviado.','ok');});
+  main.querySelectorAll('[data-adj]').forEach(b=>b.onclick=async()=>{const t=await PF.prompt('O que você gostaria de ajustar?');if(t)PF.toast('Pedido de ajuste enviado.','ok');});
 }
 render();
 </script>

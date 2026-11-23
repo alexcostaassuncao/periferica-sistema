@@ -31,6 +31,15 @@
       {href:'variavel.html',icon:'chart-column-increasing',label:'Meu Variável'},
     ]},
     {area:'agenda',href:'agenda.html',icon:'calendar-days',label:'Agenda'},
+    // Cadastros do sistema (vai crescendo aos poucos). "ref" = atalho para uma tela que mora em outro grupo.
+    {group:'Cadastros',icon:'database',items:[
+      {href:'cadastros.html',icon:'layout-list',label:'Todos os cadastros'},
+      {area:'comercial',href:'cadastros.html#produtos',icon:'package',label:'Produtos e serviços'},
+      {area:'clientes',href:'clientes.html',icon:'contact',label:'Clientes',ref:true},
+      {area:'contratos',href:'contratos.html',icon:'file-signature',label:'Contratos',ref:true},
+      {area:'equipe',href:'equipe.html',icon:'user-cog',label:'Usuários',ref:true},
+      {href:'cadastros.html#ponto',icon:'clock',label:'Relógio ponto'},
+    ]},
     {group:'Configurações',icon:'settings',items:[
       {area:'configuracoes',href:'configuracoes.html',icon:'share-2',label:'Redes sociais'},
       {area:'configuracoes',href:'portal.html',icon:'monitor-smartphone',label:'Portal do cliente'},
@@ -48,7 +57,7 @@
   function nav(areas){
     return MENU.map(m=>m.group?{...m,items:m.items.filter(i=>allowed(i,areas))}:m).filter(m=>m.group?m.items.length:allowed(m,areas)).map(m=>{
       if(!m.group)return `<a href="${m.href}" class="${m.href===page?'active':''}"><i data-lucide="${m.icon}"></i>${m.label}</a>`;
-      const open=m.items.some(i=>i.href.split('#')[0]===page);
+      const open=m.items.some(i=>!i.ref&&i.href.split('#')[0]===page);
       return `<div class="group ${open?'open':''}">
         <button class="grp" type="button"><i data-lucide="${m.icon}"></i>${m.group}<i data-lucide="chevron-down" class="chev"></i></button>
         <div class="sub">${m.items.map(i=>`<a href="${i.href}" class="${i.href===page?'active':''}"><i data-lucide="${i.icon}"></i>${i.label}</a>`).join('')}</div>
@@ -98,7 +107,7 @@
     bindNav();
     if(new URLSearchParams(location.search).has('sem-acesso'))setTimeout(()=>PF.toast('Você não tem acesso a essa área. Fale com a direção.','err'),300);
     document.getElementById('userBtn').onclick=async()=>{
-      if(!confirm('Sair do sistema?'))return;
+      if(!await PF.confirm('Sair do sistema?'))return;
       try{sessionStorage.removeItem('pf-areas');}catch{}
       await fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});location.href='login.html';
     };
@@ -164,8 +173,10 @@
     const t=document.createElement('div');t.className='toast '+kind;t.textContent=msg;document.body.appendChild(t);
     setTimeout(()=>t.remove(),kind==='err'?6000:3500);
   };
+  // Todas as janelas abrem no centro da tela (pop-up). "side" antigo vira uma janela larga.
   PF.modal=function(html,{side=false,wide=false}={}){
-    const o=document.createElement('div');o.className='overlay'+(side?' side':'');
+    if(side)wide=true;
+    const o=document.createElement('div');o.className='overlay';
     o.innerHTML=`<div class="modal ${wide?'wide':''}" role="dialog" aria-modal="true">${html}</div>`;
     const close=()=>{o.remove();document.removeEventListener('keydown',onKey);};
     const onKey=e=>{if(e.key==='Escape')close();};
@@ -176,6 +187,33 @@
     PF.icons();
     return {el:o.firstElementChild,close};
   };
+  // Avisos do próprio sistema (no lugar do confirm/prompt do navegador). Devolvem uma Promise.
+  //   if(!await PF.confirm('Apagar?',{title,ok:'Apagar',danger:true}))return;
+  //   const motivo=await PF.prompt('Motivo do cancelamento:',{required:true}); // null se cancelar
+  function ask(message,{title='Confirmar',ok='Confirmar',cancel='Cancelar',danger=false,input=false,value='',placeholder='',required=false,multiline=false,readonly=false}={}){
+    return new Promise(resolve=>{
+      const o=document.createElement('div');o.className='overlay';o.style.zIndex='1000';
+      const field=input?(multiline?`<textarea class="input" id="pfAskIn" style="min-height:90px" placeholder="${esc(placeholder)}" ${readonly?'readonly':''}>${esc(value)}</textarea>`
+        :`<input class="input" id="pfAskIn" value="${esc(value)}" placeholder="${esc(placeholder)}" ${readonly?'readonly':''}>`):'';
+      o.innerHTML=`<div class="modal" role="alertdialog" aria-modal="true" style="width:min(460px,100%)">
+        <div class="modal-head"><h3>${esc(title)}</h3></div>
+        <p style="white-space:pre-line;line-height:1.5;margin:0 0 ${input?'12px':'0'}">${esc(message)}</p>${field}
+        <p class="small" id="pfAskErr" style="color:var(--pink);margin-top:6px" hidden>Preencha este campo.</p>
+        <div class="modal-foot">${cancel?`<button class="btn btn-ghost" id="pfAskNo">${esc(cancel)}</button>`:''}<button class="btn ${danger?'btn-danger':'btn-primary'}" id="pfAskOk">${esc(ok)}</button></div></div>`;
+      const inp=()=>o.querySelector('#pfAskIn');
+      const done=v=>{o.remove();document.removeEventListener('keydown',key);resolve(v);};
+      const okFn=()=>{if(!input)return done(true);const v=inp().value.trim();if(required&&!v){o.querySelector('#pfAskErr').hidden=false;inp().focus();return;}done(readonly?true:v);};
+      const key=e=>{if(e.key==='Escape')done(input?null:false);if(e.key==='Enter'&&!(multiline&&!e.ctrlKey)&&document.body.contains(o)){e.preventDefault();okFn();}};
+      document.addEventListener('keydown',key);
+      o.addEventListener('mousedown',e=>{if(e.target===o)done(input?null:false);});
+      document.body.appendChild(o);
+      o.querySelector('#pfAskOk').onclick=okFn;
+      const no=o.querySelector('#pfAskNo');if(no)no.onclick=()=>done(input?null:false);
+      (input?inp():o.querySelector('#pfAskOk')).focus();if(input&&readonly)inp().select();
+    });
+  }
+  PF.confirm=(message,opts={})=>ask(message,opts);
+  PF.prompt=(message,opts={})=>ask(message,{title:'Informe',ok:'OK',...opts,input:true});
   PF.avatar=(name,size='sm')=>`<span class="avatar ${size}" style="background:${colorOf(name)}" title="${esc(name)}">${esc(initials(name))}</span>`;
   PF.chip=(name,size='')=>`<span class="logo-chip ${size}" style="background:${colorOf(name)}">${esc(initials(name))}</span>`;
   PF.badge=(text,color='gray')=>`<span class="badge b-${color}">${esc(text)}</span>`;

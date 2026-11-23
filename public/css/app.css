@@ -179,6 +179,7 @@ a.av:hover{background:var(--panel-3)}
 .btn-ghost:hover{border-color:#3a4554;color:#fff}
 .btn-outline{border-color:var(--orange);color:var(--orange)}
 .btn-outline:hover{background:var(--orange-soft)}
+.btn-danger{background:#e11d48;color:#fff}.btn-danger:hover{background:#be123c}
 .btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
 .btn[disabled]{opacity:.5;pointer-events:none}
 .icon-btn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}

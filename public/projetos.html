@@ -30,7 +30,7 @@ function render(){
   PF.icons();
   PF.kanban(content.querySelector('.kanban'),(id,col)=>{items.find(i=>i.id===id).col=col;PF.toast('Projeto movido para '+COLS.find(c=>c[0]===col)[1]+'.','ok');render();});
 }
-document.getElementById('np').onclick=()=>{const c=prompt('Cliente do projeto:');if(!c)return;items.push({id:'n'+Date.now(),client:c,type:'Novo projeto',col:'briefing',who:'Fernando',p:0,due:'—'});render();};
+document.getElementById('np').onclick=async()=>{const c=await PF.prompt('Cliente do projeto:');if(!c)return;items.push({id:'n'+Date.now(),client:c,type:'Novo projeto',col:'briefing',who:'Fernando',p:0,due:'—'});render();};
 render();
 </script>
 </body>

@@ -49,8 +49,7 @@
   function camposSite(d){
     return `<fieldset class="cf-box"><legend>Website</legend><div class="cf-grid">
         ${f('paginas','Páginas',d.paginas,{type:'number'})}${f('prazo_dias','Prazo de desenvolvimento (dias)',d.prazo_dias,{type:'number'})}${f('data_contrato','Data do contrato',d.data_contrato,{type:'date'})}
-        ${f('lista_paginas','Páginas do site (uma por linha)',d.lista_paginas||'Home\nQuem Somos\nTrabalhe conosco\nServiços\nContatos',{type:'area',cls:'90px',full:true})}
-        ${f('itens_extras','Itens extras (opcional, um por linha)',d.itens_extras,{type:'area',cls:'50px',full:true})}</div></fieldset>
+</div></fieldset>
       <fieldset class="cf-box"><legend>Valor</legend><div class="cf-grid">
         ${f('valor_total','Valor total (R$)',d.valor_total)}${f('parcelas','Parcelas',d.parcelas,{type:'number'})}${f('forma_pagamento','Forma',d.forma_pagamento,{list:['cartão de crédito','boleto','PIX']})}
         ${f('condicao_pagamento','Condição especial (opcional)',d.condicao_pagamento,{full:true})}${f('multa_percentual','Multa por desistência (%)',d.multa_percentual,{type:'number'})}</div></fieldset>

@@ -244,7 +244,7 @@
       box.querySelectorAll('[data-z]').forEach(i=>i.onclick=()=>zoom(i.src));
       box.querySelectorAll('[data-st]').forEach(sel=>sel.onchange=async()=>{try{await PF.api('/api/suggestions',{method:'PATCH',body:{id:sel.dataset.st,status:sel.value}});PF.toast('Status atualizado.','ok');await load();render();}catch(e){PF.toast(e.message,'err');}});
       box.querySelectorAll('[data-cm]').forEach(f=>f.onsubmit=async e=>{e.preventDefault();const v=f.elements.c.value.trim();if(!v)return;try{await PF.api('/api/suggestions',{method:'PATCH',body:{id:f.dataset.cm,comment:v}});await load();render();}catch(x){PF.toast(x.message,'err');}});
-      box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!confirm('Apagar esta sugestão?'))return;try{await PF.api('/api/suggestions',{method:'DELETE',body:{id:b.dataset.del}});await load();render();}catch(e){PF.toast(e.message,'err');}});
+      box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!await PF.confirm('Apagar esta sugestão?'))return;try{await PF.api('/api/suggestions',{method:'DELETE',body:{id:b.dataset.del}});await load();render();}catch(e){PF.toast(e.message,'err');}});
       box.querySelectorAll('[data-show]').forEach(b=>b.onclick=()=>{const s=data.suggestions.find(x=>x.id===b.dataset.show);if(s.page!==page){location.href=s.page+'?sugestao='+s.id;return;}m.close();show(s);});
       PF.icons();
       if(focusId){const it=box.querySelector('#dv-'+CSS.escape(focusId));if(it){it.scrollIntoView({block:'center'});it.style.borderColor='#8b5cf6';}focusId=null;}

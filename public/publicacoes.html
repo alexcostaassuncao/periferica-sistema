@@ -176,12 +176,12 @@ function calendar(){
 
 async function act(action,id,pub){
   try{
-    if(action==='cancel'){if(!confirm('Cancelar esta publicação em todas as redes?'))return;await PF.api('/api/publications',{method:'DELETE',body:{id:pub}});PF.toast('Publicação cancelada.','ok');}
+    if(action==='cancel'){if(!await PF.confirm('Cancelar esta publicação em todas as redes?'))return;await PF.api('/api/publications',{method:'DELETE',body:{id:pub}});PF.toast('Publicação cancelada.','ok');}
     else if(action==='process'){await PF.api('/api/publications',{method:'PATCH',body:{publicationId:pub,action:'process'}});}
-    else if(action==='confirm'){if(!confirm('Você conferiu no perfil e a publicação saiu?'))return;await PF.api('/api/publications',{method:'PATCH',body:{id,action:'confirm'}});}
+    else if(action==='confirm'){if(!await PF.confirm('Você conferiu no perfil e a publicação saiu?'))return;await PF.api('/api/publications',{method:'PATCH',body:{id,action:'confirm'}});}
     else if(action==='retry'){
       const t=state.pubs.flatMap(p=>p.targets).find(t=>t.id===id);
-      if(t?.status==='unconfirmed'&&!confirm('Confira no perfil antes: se já saiu, reenviar vai DUPLICAR o post. Reenviar mesmo assim?'))return;
+      if(t?.status==='unconfirmed'&&!await PF.confirm('Confira no perfil antes: se já saiu, reenviar vai DUPLICAR o post. Reenviar mesmo assim?'))return;
       PF.toast('Enviando…');await PF.api('/api/publications',{method:'PATCH',body:{id,action:'retry'}});watch(pub);
     }
   }catch(e){PF.toast(e.message,'err');}

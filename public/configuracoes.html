@@ -110,7 +110,7 @@ function render(){
   });
   content.querySelectorAll('[data-unlink],[data-remove]').forEach(b=>b.onclick=async()=>{
     const remove=!!b.dataset.remove;
-    if(!confirm(remove?'Apagar esta Página e o acesso guardado?':'Desvincular esta conta do cliente? As publicações dele deixam de sair nesta rede.'))return;
+    if(!await PF.confirm(remove?'Apagar esta Página e o acesso guardado?':'Desvincular esta conta do cliente? As publicações dele deixam de sair nesta rede.'))return;
     try{await PF.api('/api/social',{method:'DELETE',body:{id:b.dataset.remove||b.dataset.unlink,mode:remove?'remove':'unlink'}});PF.toast('Feito.','ok');load();}
     catch(e){PF.toast(e.message,'err');}
   });

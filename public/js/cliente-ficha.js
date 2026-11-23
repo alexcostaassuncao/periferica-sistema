@@ -116,7 +116,7 @@
           <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div></form>`);
         m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();m.close();await post({action:'doc',...Object.fromEntries(new FormData(e.target))},'Documento adicionado.');};
       };
-      p.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Remover este link?'))post({action:'doc_delete',id:b.dataset.del},'Removido.');});
+      p.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(await PF.confirm('Remover este link?',{danger:true,ok:'Remover'}))post({action:'doc_delete',id:b.dataset.del},'Removido.');});
     }
 
     function historico(p){
@@ -130,7 +130,7 @@
             ${e.kind!=='sistema'?`<button class="icon-btn" data-del="${e.id}" title="Apagar"><i data-lucide="trash-2"></i></button>`:''}</div>`).join('')||'<div class="empty"><i data-lucide="history"></i><div>Nada por aqui.</div></div>'}</div>`;
         PF.icons();
         const fk=p.querySelector('#fk');fk.value=filtro;fk.onchange=()=>{filtro=fk.value;draw();};
-        p.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Apagar este registro?'))post({action:'event_delete',id:b.dataset.del},'Apagado.');});
+        p.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(await PF.confirm('Apagar este registro?',{danger:true,ok:'Apagar'}))post({action:'event_delete',id:b.dataset.del},'Apagado.');});
         p.querySelector('#addEv').onclick=()=>{
           const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
           const m=PF.modal(`<div class="modal-head"><h3>Registrar no histórico</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
@@ -171,7 +171,7 @@
         m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();try{await PF.api('/api/clients/vault',{method:'POST',body:{action:'save',client_id:id,id:v.id,...Object.fromEntries(new FormData(e.target))}});m.close();PF.toast('Acesso salvo.','ok');cofre(p);}catch(x){PF.toast(x.message,'err');}};};
       p.querySelector('#addV').onclick=()=>form(null);
       p.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>form(items.find(i=>i.id===b.dataset.ed)));
-      p.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!confirm('Remover este acesso do cofre?'))return;try{await PF.api('/api/clients/vault',{method:'POST',body:{action:'delete',id:b.dataset.rm}});cofre(p);}catch(x){PF.toast(x.message,'err');}});
+      p.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{if(!await PF.confirm('Remover este acesso do cofre?'))return;try{await PF.api('/api/clients/vault',{method:'POST',body:{action:'delete',id:b.dataset.rm}});cofre(p);}catch(x){PF.toast(x.message,'err');}});
       p.querySelectorAll('[data-show]').forEach(b=>b.onclick=async()=>{try{const r=await PF.api('/api/clients/vault',{method:'POST',body:{action:'reveal',id:b.dataset.show}});const el=p.querySelector(`[data-sec="${b.dataset.show}"]`);el.textContent=r.secret||'(vazia)';setTimeout(()=>{el.textContent='••••••••';},20000);}catch(x){PF.toast(x.message,'err');}});
     }
 
@@ -191,7 +191,7 @@
     }
 
     async function iniciar(){
-      if(!confirm(`Iniciar o onboarding de ${D.client.name}?\n\nO prazo é de 10 dias úteis a partir de hoje.`))return;
+      if(!await PF.confirm(`Iniciar o onboarding de ${D.client.name}?\n\nO prazo é de 10 dias úteis a partir de hoje.`))return;
       try{const r=await PF.api('/api/onboarding',{method:'POST',body:{client_id:id}});location.href='onboarding.html?id='+r.id;}catch(e){PF.toast(e.message,'err');}
     }
     load();

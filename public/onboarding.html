@@ -107,10 +107,10 @@ async function lista(){
     content.querySelectorAll('[data-t],[data-kpi]').forEach(b=>b.onclick=()=>{tab=b.dataset.t||b.dataset.kpi;draw();});
     content.querySelectorAll('[data-line]').forEach(b=>b.onclick=()=>{line=b.dataset.line;sessionStorage.setItem('pf-sv-line',line);draw();});
     content.querySelectorAll('[data-assume]').forEach(b=>b.onclick=()=>assume(S.find(s=>s.id===b.dataset.assume)));
-    content.querySelectorAll('[data-finish]').forEach(b=>b.onclick=async()=>{if(!confirm('Marcar este serviço como concluído?'))return;
+    content.querySelectorAll('[data-finish]').forEach(b=>b.onclick=async()=>{if(!await PF.confirm('Marcar este serviço como concluído?'))return;
       try{await PF.api('/api/services',{method:'PATCH',body:{id:b.dataset.finish,action:'finish'}});PF.toast('Serviço concluído.','ok');lista();}catch(e){PF.toast(e.message,'err');}});
     content.querySelectorAll('[data-start]').forEach(b=>b.onclick=async()=>{
-      if(!confirm(`Iniciar o onboarding de ${b.dataset.name}? O prazo é de 10 dias úteis a partir de hoje.`))return;
+      if(!await PF.confirm(`Iniciar o onboarding de ${b.dataset.name}? O prazo é de 10 dias úteis a partir de hoje.`))return;
       try{const r=await PF.api('/api/onboarding',{method:'POST',body:{client_id:b.dataset.start}});location.href='onboarding.html?id='+r.id;}catch(e){PF.toast(e.message,'err');}
     });
   };
@@ -180,7 +180,7 @@ async function detalhe(){
     const send=content.querySelector('#send');if(send)send.onclick=async()=>{
       const squad=content.querySelector('#squad').value;
       if(!squad){PF.toast('Escolha a carteira do cliente antes de enviar para a Gestão.','err');content.querySelector('#squad').focus();return;}
-      if(!confirm(`Enviar ${o.client_name} para a Gestão, na carteira ${squad}? O onboarding será encerrado.`))return;
+      if(!await PF.confirm(`Enviar ${o.client_name} para a Gestão, na carteira ${squad}? O onboarding será encerrado.`))return;
       try{await PF.api('/api/onboarding',{method:'PATCH',body:{id:o.id,action:'send_gestao',squad}});PF.toast('Cliente enviado para a Gestão!','ok');location.href='gestao.html?id='+o.client_id;}catch(e){PF.toast(e.message,'err');}
     };
   }

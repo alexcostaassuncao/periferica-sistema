@@ -52,8 +52,8 @@ function actions(c){
   const pdf=temModelo?`<a class="icon-btn" title="Ver PDF" href="/api/contracts/pdf?id=${c.id}" target="_blank" rel="noopener"><i data-lucide="file-text"></i></a><a class="icon-btn" title="Baixar PDF" href="/api/contracts/pdf?id=${c.id}&download=1"><i data-lucide="download"></i></a>`:'';
   const enviar=temModelo?b('send',c.status==='elab'?'Enviar ao cliente':'Reenviar',c.status==='elab'?'btn-primary':'btn-ghost','send'):(c.status==='elab'?b('mark','Marcar como enviado','btn-primary','send'):'');
   if(c.status==='dados')return b('form-link','Reenviar link do formulário','btn-primary','link')+b('cancel','Cancelar');
-  if(c.status==='elab')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('cancel','Cancelar');
-  if(c.status==='aguard')return pdf+b('edit','Editar','btn-ghost','pencil')+enviar+b('sign','Marcar como assinado','btn-primary','check')+b('cancel','Cancelar');
+  if(c.status==='elab')return pdf+b('edit','Completar cadastro','btn-ghost','clipboard-pen')+enviar+b('cancel','Cancelar');
+  if(c.status==='aguard')return pdf+b('edit','Completar cadastro','btn-ghost','clipboard-pen')+enviar+b('sign','Marcar como assinado','btn-primary','check')+b('cancel','Cancelar');
   if(c.status==='assin')return pdf+(c.client_id?`<a class="btn btn-ghost btn-sm" href="clientes.html?id=${c.client_id}"><i data-lucide="contact"></i>Ver cliente</a>`:'');
   return c.cancelled_reason?`<span class="muted tiny">${PF.esc(c.cancelled_reason)}</span>`:'';
 }
@@ -99,7 +99,7 @@ function render(){
   content.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>setKind(b.dataset.k));
   content.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>setKind(kindF===b.dataset.kind?'':b.dataset.kind));
   const fl=content.querySelector('#fromLead');if(fl)fl.onclick=e=>{e.preventDefault();PF.contractForm({readyLeads:D.readyLeads,onDone:load});};
-  content.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
+  content.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
     const c=D.contracts.find(x=>x.id===b.dataset.id),a=b.dataset.a;
     if(a==='edit')return PF.contractForm({contract:c,onDone:load});
     if(a==='send')return sendMenu(c);
@@ -108,14 +108,14 @@ function render(){
       PF.api('/api/contracts',{method:'PATCH',body:{id:c.id,action:'form-link'}}).then(async r=>{
         const modal=PF.modal(`<div class="modal-head"><div><h3>Link do formulário</h3><p class="muted small">${PF.esc(c.company)} · válido por 30 dias.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
           <div class="row"><input class="input" readonly value="${PF.esc(r.url)}"><button class="btn btn-primary" id="copyFormLink">Copiar</button></div>`);
-        modal.el.querySelector('#copyFormLink').onclick=async()=>{try{await navigator.clipboard.writeText(r.url);PF.toast('Link copiado.','ok');}catch{window.prompt('Copie o link:',r.url);}};
+        modal.el.querySelector('#copyFormLink').onclick=async()=>{try{await navigator.clipboard.writeText(r.url);PF.toast('Link copiado.','ok');}catch{PF.prompt('Copie o link:',{title:'Link do formulário',value:r.url,readonly:true,ok:'Fechar',cancel:''});}};
         await load();
       }).catch(e=>PF.toast(e.message,'err'));
       return;
     }
-    if(a==='cancel'){const r=prompt('Motivo do cancelamento:');if(r)act(c.id,'cancel',{reason:r},'Contrato cancelado.');return;}
+    if(a==='cancel'){const r=await PF.prompt('Informe o motivo do cancelamento. Ele fica registrado no histórico do contrato.',{title:'Cancelar contrato',ok:'Cancelar contrato',cancel:'Voltar',danger:true,required:true,placeholder:'Ex.: cliente desistiu'});if(r)act(c.id,'cancel',{reason:r},'Contrato cancelado.');return;}
     if(a==='sign'){
-      if(!confirm(`Confirmar que ${c.company} assinou o contrato?\n\nO cliente será criado automaticamente em Clientes com os dados do cadastro.`))return;
+      if(!await PF.confirm(`Confirmar que ${c.company} assinou o contrato?\n\nO cliente será criado automaticamente em Clientes com os dados do cadastro, e o serviço entra na fila de onboarding.`,{title:'Marcar como assinado',ok:'Confirmar assinatura'}))return;
       act(c.id,'sign',{},()=>`Contrato assinado! ${c.company} agora está em Clientes.`);
     }
   });

@@ -262,7 +262,7 @@ async function cliente(){
     const collect=()=>{const by={};p.querySelectorAll('[data-id][data-k]').forEach(i=>{(by[i.dataset.id]??={id:i.dataset.id})[i.dataset.k]=i.dataset.k==='needs_capture'?i.value==='1':i.value;});return Object.values(by);};
     const saveItems=async(silent)=>{try{await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'items',items:collect()}});if(!silent)PF.toast('Grade salva.','ok');return true;}catch(e){PF.toast(e.message,'err');return false;}};
     on('#cSaveItems',async()=>{if(await saveItems())reload();});
-    on('#cConclude',async()=>{if(!await saveItems(true))return;if(!confirm('Concluir o planejamento? Todas as entregas em Gestão vão para a fila do Copy.'))return;
+    on('#cConclude',async()=>{if(!await saveItems(true))return;if(!await PF.confirm('Concluir o planejamento? Todas as entregas em Gestão vão para a fila do Copy.'))return;
       try{const r=await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'conclude'}});PF.toast(`${r.sent} entregas enviadas para o Copy.`,'ok');load();}catch(e){PF.toast(e.message,'err');}});
     on('#cGrade',async()=>{try{const r=await PF.api('/api/ciclos',{method:'PATCH',body:{client_id:id,month:cm,action:'grade'}});
       const msg=`Olá! Segue a grade de conteúdos de ${ymLabel(cm)} para sua aprovação: ${r.url}`;

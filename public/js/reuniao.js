@@ -41,7 +41,7 @@
     m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();const b=m.el.querySelector('#save');b.disabled=true;
       const body={id:mt.id,...Object.fromEntries(new FormData(e.target)),participants:parts};
       try{const r=await PF.api('/api/meetings',{method:'POST',body});m.close();PF.toast('Reunião salva.','ok');onDone&&onDone(r.id);}catch(x){PF.toast(x.message,'err');b.disabled=false;}};
-    const del=m.el.querySelector('#del');if(del)del.onclick=async()=>{if(!confirm('Cancelar (apagar) esta reunião?'))return;try{await PF.api('/api/meetings',{method:'DELETE',body:{id:mt.id}});m.close();PF.toast('Reunião cancelada.','ok');onDone&&onDone();}catch(x){PF.toast(x.message,'err');}};
+    const del=m.el.querySelector('#del');if(del)del.onclick=async()=>{if(!await PF.confirm('Cancelar (apagar) esta reunião?'))return;try{await PF.api('/api/meetings',{method:'DELETE',body:{id:mt.id}});m.close();PF.toast('Reunião cancelada.','ok');onDone&&onDone();}catch(x){PF.toast(x.message,'err');}};
   }
 
   async function ata(id,{onDone}={}){
@@ -67,7 +67,7 @@
       const fi=m.el.querySelector('#file');m.el.querySelector('#up').onclick=()=>fi.click();
       fi.onchange=async()=>{const f=fi.files[0];if(!f)return;PF.toast('Enviando…');try{const url=await PF.upload(f,'ata');await PF.api('/api/meetings',{method:'PATCH',body:{id,action:'file_add',name:f.name,url,kind:f.type==='application/pdf'?'pdf':'imagem'}});PF.toast('Anexo adicionado.','ok');load();}catch(x){PF.toast(x.message,'err');}};
       m.el.querySelector('#addL').onclick=async()=>{try{await PF.api('/api/meetings',{method:'PATCH',body:{id,action:'file_add',url:m.el.querySelector('#lnk').value,name:m.el.querySelector('#lnkN').value}});load();}catch(x){PF.toast(x.message,'err');}};
-      m.el.querySelectorAll('[data-fd]').forEach(b=>b.onclick=async()=>{if(!confirm('Remover anexo?'))return;await PF.api('/api/meetings',{method:'PATCH',body:{id,action:'file_del',file_id:b.dataset.fd}}).catch(x=>PF.toast(x.message,'err'));load();});
+      m.el.querySelectorAll('[data-fd]').forEach(b=>b.onclick=async()=>{if(!await PF.confirm('Remover anexo?'))return;await PF.api('/api/meetings',{method:'PATCH',body:{id,action:'file_del',file_id:b.dataset.fd}}).catch(x=>PF.toast(x.message,'err'));load();});
       const sh=m.el.querySelector('#share');if(sh)sh.onclick=async()=>{
         try{const pv=await PF.api('/api/meetings',{method:'PATCH',body:{id,action:'share',preview:true}});
           const m2=PF.modal(`<div class="modal-head"><div><h3>Compartilhar com o cliente</h3><p class="muted small">Este é exatamente o conteúdo que será enviado. O texto completo da ata não vai.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>

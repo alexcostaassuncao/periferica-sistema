@@ -111,7 +111,7 @@
       ({detalhes,briefing,conteudo,entrega,comentarios,historico})[tab](pane);
       footer(m.el.querySelector('#tkFoot'));
       PF.icons();
-      m.el.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{if(dirty&&!confirm('Há alterações não salvas. Sair mesmo assim?'))return;m.close();});
+      m.el.querySelectorAll('[data-close]').forEach(b=>b.onclick=async()=>{if(dirty&&!await PF.confirm('Há alterações não salvas. Sair mesmo assim?',{ok:'Sair sem salvar',danger:true}))return;m.close();});
       m.el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=async()=>{if(dirty&&!await save(true))return;tab=b.dataset.tab;sessionStorage.setItem('pf-tk-tab',tab);await load();});
       m.el.querySelectorAll('[data-f]').forEach(i=>i.addEventListener('input',()=>dirty=true));
     }
@@ -226,7 +226,7 @@
         m2.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();const ok=await act({action:'send',to,assignee_id:e.target.elements.assignee_id.value},`Tarefa enviada para ${label}.`);if(ok)m2.close();};};
       on('tkGrade',async()=>{if(!await save(true))return;act({action:'to_client'},'Liberada na grade do mês: o cliente aprova pelo link da grade.');});
       on('tkCopy',()=>send('copy','Copy'));on('tkVideo',()=>send('video','Videomaker'));on('tkDesign',()=>send('design','Design'));on('tkReview',()=>send('revisao','Revisão'));
-      on('tkDel',async()=>{if(!confirm('Apagar esta tarefa?'))return;try{await PF.api('/api/tasks',{method:'DELETE',body:{id}});PF.toast('Tarefa apagada.','ok');onChange&&onChange();m.close();}catch(e){PF.toast(e.message,'err');}});
+      on('tkDel',async()=>{if(!await PF.confirm('Apagar esta tarefa?'))return;try{await PF.api('/api/tasks',{method:'DELETE',body:{id}});PF.toast('Tarefa apagada.','ok');onChange&&onChange();m.close();}catch(e){PF.toast(e.message,'err');}});
       on('tkAdj',()=>{const m2=PF.modal(`<div class="modal-head"><h3>Solicitar ajustes</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
           <form class="stack" id="f"><div class="field"><span>O que precisa ser corrigido?</span><div class="toggle" style="align-self:flex-start"><button type="button" data-tg="design" class="on">Arte (Design)</button>${String(t.category).startsWith('video')?'<button type="button" data-tg="video">Vídeo (Videomaker)</button>':''}<button type="button" data-tg="copy">Texto / legenda (Copy)</button></div></div>
           <label class="field"><span>Motivo (obrigatório)</span><textarea class="input" name="reason" required minlength="5" placeholder="Ex.: aumentar o logo e trocar a foto do fundo"></textarea></label>
@@ -242,7 +242,7 @@
         m2.el.querySelectorAll('[data-via]').forEach(x=>x.onclick=async()=>{const via=x.dataset.via,message=m2.el.querySelector('#msg').value;
           try{const r=await PF.api('/api/tasks',{method:'PATCH',body:{id,action:'share',via,message,to:m2.el.querySelector('#em').value}});
             if(via==='whatsapp'){const fone=(r.phone||'').replace(/\D/g,'');window.open(`https://wa.me/${fone?(fone.length<=11?'55'+fone:fone):''}?text=${encodeURIComponent(message+'\n\n'+r.url)}`,'_blank');}
-            if(via==='link'){try{await navigator.clipboard.writeText(r.url);}catch{}prompt('Link de aprovação (copie):',r.url);}
+            if(via==='link'){try{await navigator.clipboard.writeText(r.url);}catch{}await PF.prompt('Link de aprovação (já copiado):',{title:'Link para o cliente',value:r.url,readonly:true,ok:'Fechar',cancel:''});}
             PF.toast(via==='email'?'Enviado por email.':'Liberado para o cliente.','ok');m2.close();onChange&&onChange();load();}catch(e){PF.toast(e.message,'err');}});});
       on('tkRes',()=>{const m2=PF.modal(`<div class="modal-head"><h3>Retorno do cliente</h3><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
           <form class="stack" id="f"><p class="muted small">Use quando o cliente respondeu por fora do link (WhatsApp, ligação).</p>
