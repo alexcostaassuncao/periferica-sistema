@@ -46,17 +46,18 @@
   .crm-dash-row{display:grid;grid-template-columns:1.2fr 1fr;gap:12px}
   .crm-products{padding:12px}
   .crm-products .report-table td:last-child,.crm-products .report-table th:last-child{text-align:right}
-  .crm-filters{display:grid;grid-template-columns:repeat(8,minmax(120px,1fr));gap:8px;margin:12px 0}
+  .crm-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:12px 0 8px}
   .crm-filters .field{min-width:0}
   .crm-filter-dates{display:contents}
-  .crm-product-row{display:grid;grid-template-columns:140px minmax(160px,1fr) 150px auto;align-items:end;gap:8px}
+  .crm-product-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr) auto;align-items:end;gap:8px}
+  .crm-product-row [data-remove-product]{justify-self:end}
   .crm-product-row .field{min-width:0}
   .crm-contract-list{display:flex;flex-direction:column;gap:8px}
   .crm-contract-item{padding:10px;border:1px solid var(--line);border-radius:9px}
   .crm-contract-item .top{display:flex;justify-content:space-between;gap:8px}
   .crm-alert{border-color:rgba(246,181,30,.4);background:rgba(246,181,30,.08)}
-  @media(max-width:1000px){.crm-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.crm-filters{grid-template-columns:repeat(4,minmax(120px,1fr))}}
-  @media(max-width:650px){.crm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-dash-row{grid-template-columns:1fr}.crm-filters{grid-template-columns:repeat(2,minmax(120px,1fr))}.crm-product-row{grid-template-columns:1fr 1fr}}
+  @media(max-width:1000px){.crm-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:650px){.crm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-dash-row{grid-template-columns:1fr}.crm-product-row{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr)}.crm-filters{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -72,8 +73,10 @@ const CATEGORY_LABEL={gestao:'Gestão',projeto:'Projeto',outro:'Outro'};
 const WAIT=['Sem resposta (com data de retorno)','Retomada futura (ex.: 3 meses)','Aguardando definição do cliente'];
 const ARCH=['Não teve interesse','Desqualificado (fora do perfil)','Não respondeu (após tentativas)','Fechou com outra empresa'];
 const CHANNELS=[['manual','Cadastro manual'],['form','Formulário do site'],['whatsapp','WhatsApp manual'],['meta_form','Formulário Meta'],['whatsapp_api','WhatsApp integrado'],['integration','Outra integração']];
-let leads=[],owners=[],tab='andamento',filters={src:'',seg:'',owner:'',month:'',year:'',from:'',to:'',product:'',stage:''},q='';
-let canViewValues=true,dashboardData=null,dashboardIds=null,dashboardMetric='';
+const EMPTY_FILTERS={src:'',seg:'',owner:'',month:'',year:'',from:'',to:'',product:'',stage:''};
+// filters = o que está aplicado; draft = o que a pessoa está montando (só vale ao clicar em "Aplicar filtros").
+let leads=[],owners=[],tab='andamento',filters={...EMPTY_FILTERS},draft={...EMPTY_FILTERS},q='';
+let canViewValues=true,dashboardData=null,dashboardIds=null,dashboardMetric='',catalog={gestao:[],projeto:[],outro:[]};
 const ownerName=id=>owners.find(o=>o.id===id)?.name||'';
 const wa=p=>'https://wa.me/55'+String(p||'').replace(/\D/g,'');
 const dateInput=ms=>{if(!ms)return '';const date=new Date(ms);return new Date(ms-date.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -85,7 +88,7 @@ const contractAge=c=>Math.floor((Date.now()-Number(c.status==='aguard'?c.sent_at
 const pendingContract=c=>['dados','aguard'].includes(c.status)&&contractAge(c)>=3;
 
 async function load(){
-  try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;canViewValues=d.canViewValues!==false;}catch(e){PF.toast(e.message,'err');}
+  try{const d=await PF.api('/api/leads');leads=d.leads;owners=d.owners;canViewValues=d.canViewValues!==false;if(d.catalog)catalog=d.catalog;}catch(e){PF.toast(e.message,'err');}
   await loadDashboard();
   render();
 }
@@ -108,7 +111,9 @@ async function loadDashboard(){
   try{dashboardData=(await PF.api('/api/leads/reports?'+dashboardParams().toString())).dashboard;}
   catch(e){dashboardData=null;PF.toast(e.message,'err');}
 }
-async function refreshFilters(){dashboardIds=null;dashboardMetric='';await loadDashboard();render();}
+async function refreshFilters(){draft={...filters};dashboardIds=null;dashboardMetric='';await loadDashboard();render();}
+const draftChanged=()=>Object.keys(EMPTY_FILTERS).some(k=>draft[k]!==filters[k]);
+const activeCount=()=>Object.values(filters).filter(Boolean).length;
 async function patch(body,msg){
   try{await PF.api('/api/leads',{method:'PATCH',body});if(msg)PF.toast(msg,'ok');}catch(e){PF.toast(e.message,'err');}
   await load();
@@ -121,8 +126,10 @@ function productsLabel(l){
   if(products.length>2)names.push(`+${products.length-2}`);
   return names.join(' · ');
 }
+// O contrato é gerado depois da reunião com o cliente: o botão só aparece na etapa Reunião.
+// Em Proposta enviada e Aguardando contrato aparece só a situação do contrato.
 function canGenerate(l){
-  if(['fechado','venda_perdida'].includes(l.stage))return false;
+  if(l.stage!=='reuniao')return false;
   const kinds=new Set((l.contracts||[]).filter(c=>c.status!=='canc').map(c=>c.kind));
   return !kinds.has('Gestão')||!kinds.has('Projetos');
 }
@@ -152,12 +159,32 @@ function dashboardHTML(visible){
     ${dashboardMetric?`<button class="btn btn-ghost btn-sm" data-clear-kpi>Limpar seleção do indicador</button>`:''}
     ${alerts.length?`<div class="note crm-alert"><i data-lucide="bell-ring"></i><div><b>Contratos pendentes há 3 dias ou mais</b>
       <div class="small">${alerts.map(({lead,contract,days})=>`<a class="link" href="#" data-open="${lead.id}">${PF.esc(lead.company)}</a> · ${PF.esc(contractLabel(contract.status))} há ${days} dias`).join(' · ')}</div></div></div>`:''}
-    <div class="crm-dash-row"><section class="card crm-products"><b>Oportunidades por produto / serviço</b>
+    <div><section class="card crm-products"><b>Oportunidades por produto / serviço</b>
       <table class="report-table"><thead><tr><th>Produto / serviço</th><th>Oportunidades</th>${canViewValues?'<th>Valor envolvido</th>':''}</tr></thead><tbody>
       ${data.byProduct.length?data.byProduct.map(item=>`<tr data-product-filter="${PF.esc(item.name)}" style="cursor:pointer"><td>${PF.esc(item.name)}</td><td>${item.opportunities}</td>${canViewValues?`<td>${brlCents(item.amount_cents)}</td>`:''}</tr>`).join(''):`<tr><td colspan="${canViewValues?3:2}">Sem produtos neste filtro.</td></tr>`}
-      </tbody></table></section>
-      <section class="card crm-products"><b>Datas consideradas</b><p class="muted small">Leads recebidos: entrada · propostas: envio/renegociação · aceites: geração do primeiro contrato · fechamentos: assinatura de todos os contratos obrigatórios.</p>
-        <p class="muted small">Aguardando contrato: ${data.awaitingContracts.count} · Venda perdida: ${data.lost.count}</p></section></div>
+      </tbody></table></section></div>
+  </section>`;
+}
+// Filtros e período ficam no topo, acima do painel. Nada muda até clicar em "Aplicar filtros".
+function filtersHTML(productOptions,years,months){
+  const changed=draftChanged(),n=activeCount();
+  return `<section class="card mb">
+    <div class="row between wrap" style="gap:8px"><div><b>Período e filtros</b>${n?` <span class="count">${n} aplicado(s)</span>`:''}</div>
+      <div class="row" style="gap:8px"><span class="small" id="fPending" style="color:var(--yellow)" ${changed?'':'hidden'}>Alterações ainda não aplicadas</span>
+        <a class="link small" href="#" id="fClear">Limpar</a>
+        <button class="btn btn-primary btn-sm" id="fApply" ${changed?'':'disabled'}><i data-lucide="filter"></i>Aplicar filtros</button></div></div>
+    <div class="crm-filters">
+      <label class="field"><span>De</span><input class="input" type="date" id="fFrom" value="${draft.from}"></label>
+      <label class="field"><span>Até</span><input class="input" type="date" id="fTo" value="${draft.to}"></label>
+      ${PF.select('fMonth','Mês',[['','Mês: todos'],...months])}
+      ${PF.select('fYear','Ano',[['','Ano: todos'],...years.map(year=>[String(year),String(year)])])}
+      ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
+      ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.segment).filter(Boolean))].map(s=>[s,s])])}
+      ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
+      ${PF.select('fProduct','Produto / serviço',[['','Produto: todos'],...productOptions.map(name=>[name,name])])}
+      ${PF.select('fStage','Etapa',[['','Etapa: todas'],...STAGES.map(([key,label])=>[key,label])])}
+    </div>
+    <p class="muted tiny">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · aceites pela geração do primeiro contrato · fechamentos pela assinatura de todos os contratos obrigatórios.</p>
   </section>`;
 }
 
@@ -192,20 +219,10 @@ function render(){
   const currentYear=new Date().getFullYear(),years=[...new Set([currentYear,...leads.map(l=>new Date(Number(l.created_at)).getFullYear())])].sort((a,b)=>b-a);
   const months=[['1','Janeiro'],['2','Fevereiro'],['3','Março'],['4','Abril'],['5','Maio'],['6','Junho'],['7','Julho'],['8','Agosto'],['9','Setembro'],['10','Outubro'],['11','Novembro'],['12','Dezembro']];
   content.innerHTML=`
+  ${filtersHTML(productOptions,years,months)}
   ${dashboardHTML(active)}
   <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).filter(match).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
-  <div class="crm-filters">
-    ${PF.select('fSrc','Origem',[['','Origem: Todas'],...[...new Set(leads.map(l=>l.source).filter(Boolean))].map(s=>[s,s])])}
-    ${PF.select('fSeg','Segmento',[['','Segmento: Todos'],...[...new Set(leads.map(l=>l.segment).filter(Boolean))].map(s=>[s,s])])}
-    ${PF.select('fOwner','Responsável',[['','Responsável: Todos'],...owners.map(o=>[o.id,o.name])])}
-    ${PF.select('fMonth','Mês',[['','Mês: todos'],...months])}
-    ${PF.select('fYear','Ano',[['','Ano: todos'],...years.map(year=>[String(year),String(year)])])}
-    <label class="field"><span>De</span><input class="input" type="date" id="fFrom" value="${filters.from}"></label>
-    <label class="field"><span>Até</span><input class="input" type="date" id="fTo" value="${filters.to}"></label>
-    ${PF.select('fProduct','Produto / serviço',[['','Produto: todos'],...productOptions.map(name=>[name,name])])}
-    ${PF.select('fStage','Etapa',[['','Etapa: todas'],...STAGES.map(([key,label])=>[key,label])])}
-  </div>
   <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
   :`<div class="card mb">${by(tab).filter(match).length?`<table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th>${tab==='espera'?'<th>Retomar em</th>':''}<th>Responsável</th><th></th></tr></thead><tbody>
     ${by(tab).filter(match).map(l=>`<tr><td><div class="who">${PF.chip(l.company)}<div><b>${PF.esc(l.company)}</b><small>${PF.esc(l.segment||'—')}</small></div></div></td><td>${PF.esc(l.reason)}</td>${tab==='espera'?`<td>${l.return_at?l.return_at.split('-').reverse().join('/'):'—'}</td>`:''}<td>${PF.esc(ownerName(l.owner_id)||'—')}</td>
@@ -230,13 +247,15 @@ function render(){
   if(clearKpi)clearKpi.onclick=()=>{dashboardIds=null;dashboardMetric='';render();};
   content.querySelectorAll('[data-product-filter]').forEach(row=>row.onclick=()=>{filters.product=row.dataset.productFilter;refreshFilters();});
   content.querySelectorAll('[data-open]').forEach(b=>b.onclick=e=>{e.preventDefault();openLead(leads.find(l=>l.id===b.dataset.open));});
+  // Montar os filtros não recarrega nada: só o botão "Aplicar filtros" atualiza o painel e o funil.
+  const applyBtn=content.querySelector('#fApply'),note=()=>{const c=draftChanged();applyBtn.disabled=!c;content.querySelector('#fPending').hidden=!c;};
+  for(const [id,key] of [['fSrc','src'],['fSeg','seg'],['fOwner','owner'],['fMonth','month'],['fYear','year'],['fProduct','product'],['fStage','stage'],['fFrom','from'],['fTo','to']]){
+    const el=content.querySelector('#'+id);el.value=draft[key];
+    const upd=()=>{draft[key]=el.value;note();};el.onchange=upd;if(el.type==='date')el.oninput=upd;
+  }
+  applyBtn.onclick=()=>{if(draft.from&&draft.to&&draft.to<draft.from)return PF.toast('A data final não pode ser antes da inicial.','err');filters={...draft};refreshFilters();};
+  content.querySelector('#fClear').onclick=e=>{e.preventDefault();filters={...EMPTY_FILTERS};refreshFilters();};
   if(tab==='andamento'){
-    const bindFilter=(id,key)=>{const s=content.querySelector('#'+id);s.value=filters[key];s.onchange=()=>{filters[key]=s.value;refreshFilters();};};
-    bindFilter('fSrc','src');bindFilter('fSeg','seg');bindFilter('fOwner','owner');bindFilter('fMonth','month');bindFilter('fYear','year');
-    bindFilter('fProduct','product');bindFilter('fStage','stage');
-    for(const [id,key] of [['fFrom','from'],['fTo','to']]){
-      const input=content.querySelector('#'+id);input.onchange=()=>{filters[key]=input.value;refreshFilters();};
-    }
     PF.kanban(content.querySelector('.kanban'),(id,col)=>{
       const l=leads.find(x=>x.id===id);if(!l||l.stage===col)return;
       if(col==='fechado'){PF.toast('Fechado só é permitido após confirmar a assinatura do contrato.','err');return load();}
@@ -319,16 +338,24 @@ function markLost(l){
   };
 }
 
+// Produto/serviço vem do catálogo da categoria (planos de Gestão e tipos de Projeto). "Outro" é texto livre.
+function productNameField(category,name=''){
+  const list=catalog[category]||[];
+  if(!list.length)return `<input class="input" data-product-name maxlength="120" value="${PF.esc(name)}" placeholder="Descreva o produto ou serviço">`;
+  const extra=name&&!list.includes(name)?`<option value="${PF.esc(name)}" selected>${PF.esc(name)} (fora da lista)</option>`:'';
+  return `<select class="select-in" data-product-name><option value="">Escolha…</option>${extra}${list.map(n=>`<option value="${PF.esc(n)}" ${n===name?'selected':''}>${PF.esc(n)}</option>`).join('')}</select>`;
+}
 function productRow(product={}){
+  const category=product.category||'gestao',cents=Number(product.amount_cents)||0;
   return `<div class="crm-product-row" data-product-row>
-    <label class="field"><span>Categoria</span><select class="select-in" data-product-category>${Object.entries(CATEGORY_LABEL).map(([key,label])=>`<option value="${key}" ${key===(product.category||'gestao')?'selected':''}>${label}</option>`).join('')}</select></label>
-    <label class="field"><span>Produto / serviço</span><input class="input" data-product-name maxlength="120" value="${PF.esc(product.name||'')}" placeholder="Ex.: Gestão de Marketing"></label>
-    ${canViewValues?`<label class="field"><span>Valor (R$)</span><input class="input" data-product-amount type="number" min="0" step="0.01" value="${(Number(product.amount_cents)||0)/100}"></label>`:''}
+    <label class="field"><span>Categoria</span><select class="select-in" data-product-category>${Object.entries(CATEGORY_LABEL).map(([key,label])=>`<option value="${key}" ${key===category?'selected':''}>${label}</option>`).join('')}</select></label>
+    <label class="field" data-name-wrap><span>Produto / serviço</span>${productNameField(category,product.name||'')}</label>
+    ${canViewValues?`<label class="field"><span>Valor (R$)</span><input class="input" data-product-amount type="number" min="0" step="0.01" value="${cents?cents/100:''}" placeholder="Definir na proposta"></label>`:''}
     <button type="button" class="btn btn-ghost btn-sm" data-remove-product aria-label="Remover produto"><i data-lucide="trash-2"></i></button>
   </div>`;
 }
 function productsEditor(l){
-  const products=l.products?.length?l.products:[{category:'gestao',name:l.interest||'',amount_cents:0}];
+  const products=l.products?.length?l.products:[{category:'gestao',name:'',amount_cents:0}];
   return `<fieldset class="card flat" id="productsEditor"><legend><b>Produtos e valores da proposta</b></legend>
     <div class="crm-contract-list" id="productRows">${products.map(productRow).join('')}</div>
     <div class="row wrap" style="justify-content:space-between;margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" id="addProduct"><i data-lucide="plus"></i>Adicionar produto</button>
@@ -371,7 +398,7 @@ function openLead(l){
         <button type="button" class="btn btn-ghost btn-sm" id="arch"><i data-lucide="archive"></i>Arquivar</button>
       </div>
       <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Salvar</button></div>
-    </form>`,{side:true});
+    </form>`,{wide:true});
   const f=m.el.querySelector('#f');
   bindReference(f);
   f.onsubmit=async e=>{
@@ -396,6 +423,10 @@ function openLead(l){
   f.querySelector('#addProduct').onclick=()=>{productBox.querySelector('#productRows').insertAdjacentHTML('beforeend',productRow());PF.icons();setProductRequired(stageSelect.value==='proposta');};
   productBox.onclick=e=>{const remove=e.target.closest('[data-remove-product]');if(remove){remove.closest('[data-product-row]').remove();refreshProductTotal();}};
   productBox.oninput=refreshProductTotal;
+  // Trocar a categoria troca a lista de produtos daquela categoria.
+  productBox.onchange=e=>{const cat=e.target.closest('[data-product-category]');if(!cat)return;
+    const wrap=cat.closest('[data-product-row]').querySelector('[data-name-wrap]');
+    wrap.innerHTML='<span>Produto / serviço</span>'+productNameField(cat.value);setProductRequired(stageSelect.value==='proposta');};
   showLeadHistory(l.id,m.el.querySelector('#leadHistory'));
   const g=m.el.querySelector('#gen');if(g)g.onclick=()=>{m.close();generate(l);};
   m.el.querySelector('#wait').onclick=()=>reason(l,'espera');
@@ -557,10 +588,20 @@ async function showLeadReports(){
 document.getElementById('newLead').onclick=()=>{
   const m=PF.modal(`<div class="modal-head"><div><h3>Novo lead</h3><p class="muted small">Entra na coluna "Novo lead". Esses dados vão para o contrato e para o cadastro do cliente.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
   <form class="stack" id="nl">${fields({})}
+  <fieldset class="card flat" id="nlProducts"><legend><b>O que o cliente procura</b></legend>
+    <div class="crm-contract-list" id="productRows">${productRow({category:'gestao'})}</div>
+    <div class="row wrap" style="justify-content:space-between;margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" id="addProduct"><i data-lucide="plus"></i>Adicionar produto</button><span class="muted small">Os valores entram depois, na proposta.</span></div></fieldset>
   <label class="field"><span>Anotações da triagem</span><textarea class="input" name="notes" style="min-height:80px"></textarea></label>
-  <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`,{side:true});
+  <div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Adicionar ao funil</button></div></form>`,{wide:true});
   const form=m.el.querySelector('#nl');bindReference(form);
-  form.onsubmit=async e=>{e.preventDefault();if(!await resolveReference(form))return;try{await PF.api('/api/leads',{method:'POST',body:formData(form)});m.close();PF.toast('Lead adicionado em Novo lead.','ok');load();}catch(x){PF.toast(x.message,'err');}};
+  // No cadastro não há valor: some o campo de valor das linhas.
+  const box=form.querySelector('#nlProducts'),noValue=()=>box.querySelectorAll('[data-product-amount]').forEach(i=>i.closest('.field').remove());noValue();
+  form.querySelector('#addProduct').onclick=()=>{box.querySelector('#productRows').insertAdjacentHTML('beforeend',productRow());noValue();PF.icons();};
+  box.onclick=e=>{const r=e.target.closest('[data-remove-product]');if(r)r.closest('[data-product-row]').remove();};
+  box.onchange=e=>{const cat=e.target.closest('[data-product-category]');if(!cat)return;cat.closest('[data-product-row]').querySelector('[data-name-wrap]').innerHTML='<span>Produto / serviço</span>'+productNameField(cat.value);};
+  form.onsubmit=async e=>{e.preventDefault();if(!await resolveReference(form))return;
+    const body={...formData(form),products:readProducts(form)};
+    try{await PF.api('/api/leads',{method:'POST',body});m.close();PF.toast('Lead adicionado em Novo lead.','ok');load();}catch(x){PF.toast(x.message,'err');}};
 };
 document.getElementById('leadReferences').onclick=showReferences;
 document.getElementById('leadReports').onclick=showLeadReports;

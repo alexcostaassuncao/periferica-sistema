@@ -145,6 +145,10 @@ const MES_PT=['janeiro','fevereiro','março','abril','maio','junho','julho','ago
 function qualificacao(d:Dados){
   const end=[s(d.logradouro),s(d.numero)?'nº '+s(d.numero):'',s(d.complemento),s(d.bairro)?'Bairro '+s(d.bairro):'',s(d.cidade)?'Cidade de '+s(d.cidade):'',s(d.cep)?'CEP '+s(d.cep):''].filter(Boolean).join(', ');
   const doc=s(d.documento);const tipo=doc.replace(/\D/g,'').length===11?'CPF':'CNPJ';
+  const nasc=s(d.nascimento)?', data de nascimento '+dataBr(s(d.nascimento)):'';
+  // Pessoa física: a própria pessoa assina (sem "representada por").
+  if(s(d.tipo_pessoa)==='pf'||(!s(d.tipo_pessoa)&&tipo==='CPF'))
+    return `**CONTRATANTE:** ${ou(d.razao_social)}, CPF ${ou(doc)}${nasc}, residente e domiciliado(a) na ${end||'____________'}.`;
   return `**CONTRATANTE:** ${ou(d.razao_social)}, ${tipo} ${ou(doc)}${s(d.nome_fantasia)?', Nome Fantasia '+s(d.nome_fantasia):''}, estabelecida na ${end||'____________'}, neste ato representada por ${ou(d.representante)}, CPF ${ou(d.cpf_representante)}${s(d.nascimento)?', data de nascimento '+dataBr(s(d.nascimento)):''}.`;
 }
 const contratadaLinha=`**CONTRATADA:** ${CONTRATADA.razao}, CNPJ ${CONTRATADA.cnpj}, estabelecida na ${CONTRATADA.endereco}, neste ato representada por ${CONTRATADA.representante}, CPF ${CONTRATADA.cpf}.`;

@@ -25,7 +25,13 @@
     <label class="field"><span>Seu nome</span><input class="input" name="contact_name" maxlength="120" autocomplete="name"></label>
     <label class="field"><span>WhatsApp</span><input class="input" name="phone" maxlength="40" autocomplete="tel"></label>
     <label class="field"><span>Email</span><input class="input" name="email" type="email" maxlength="200" autocomplete="email"></label>
-    <label class="field"><span>Como podemos ajudar?</span><input class="input" name="interest" maxlength="120"></label>
+    <label class="field"><span>Como podemos ajudar?</span><select class="input" name="interest">
+      <option value="">Escolha o que você procura…</option>
+      <optgroup label="Gestão de marketing"><option value="ADS PRO">Gestão de tráfego pago (ADS PRO)</option><option value="ADS PRO + SOCIAL MEDIA">Tráfego pago + redes sociais</option>
+        <option value="SMART BUSINESS">Smart Business</option><option value="TRÁFEGO LIGHT">Tráfego Light</option><option value="SOCIAL MEDIA">Gestão de redes sociais</option></optgroup>
+      <optgroup label="Projetos"><option value="Website institucional">Website institucional</option><option value="Landing page">Landing page</option><option value="E-commerce">Loja virtual (e-commerce)</option>
+        <option value="Blog">Blog</option><option value="Web banner">Web banner</option><option value="Banner impresso">Banner impresso</option><option value="Identidade visual">Identidade visual / logo</option><option value="Material gráfico">Material gráfico</option></optgroup>
+      <option value="Outro">Outro assunto</option></select></label>
     <label class="honeypot" aria-hidden="true">Site<input name="website" tabindex="-1" autocomplete="off"></label>
     <p id="formMessage" class="small" aria-live="polite"></p>
     <button class="btn btn-primary" type="submit">Enviar contato</button>

@@ -1,6 +1,7 @@
 import {database} from '../../../db/raw';
 import {canAccess,currentUser,sameOrigin} from '../../../lib/auth';
 import {PRODUCT_CATEGORIES,STAGES,owners} from '../../../db/crm';
+import {PRODUCT_CATALOG,matchInterest} from '../../../db/produtos';
 
 // CRM comercial: leads, etapas do funil, espera e arquivados.
 const json=(d:any,s=200)=>Response.json(d,{status:s,headers:{'Cache-Control':'no-store'}});
@@ -37,7 +38,7 @@ export async function GET(req:Request){
   const db=database();
   const leads=(await db.prepare('SELECT * FROM leads ORDER BY updated_at DESC').all()).results as any[];
   const ids=leads.map(lead=>lead.id),canViewValues=canViewAmounts(req);
-  if(!ids.length)return json({leads:[],owners:await owners(),canViewValues});
+  if(!ids.length)return json({leads:[],owners:await owners(),canViewValues,catalog:PRODUCT_CATALOG});
   const placeholders=ids.map(()=>'?').join(',');
   const products=(await db.prepare(`SELECT id,lead_id,category,name,amount_cents,position FROM lead_products
     WHERE lead_id IN (${placeholders}) ORDER BY position,created_at`).bind(...ids).all()).results as any[];
@@ -56,7 +57,7 @@ export async function GET(req:Request){
   }
   return json({leads:leads.map(lead=>({...lead,products:productsByLead.get(lead.id)||[],
     contracts:contractsByLead.get(lead.id)||[],contract_status:(contractsByLead.get(lead.id)||[]).find(c=>c.status!=='canc')?.status||null})),
-    owners:await owners(),canViewValues});
+    owners:await owners(),canViewValues,catalog:PRODUCT_CATALOG});
 }
 
 export async function POST(req:Request){
@@ -98,12 +99,12 @@ export async function POST(req:Request){
     attributionValues.utm_source,attributionValues.utm_medium,attributionValues.utm_campaign,attributionValues.utm_content,attributionValues.utm_term,
     attributionValues.gclid,attributionValues.fbclid,attributionValues.lead_source,attributionValues.platform,attributionValues.campaign_name,
     attributionValues.ad_name,attributionValues.reference_code,attributionValues.attribution_method,conversionAt,raw)];
-  const interest=v('interest');
-  if(interest){
-    const category=/site|website|e-?commerce|loja/i.test(interest)?'projeto':'gestao';
-    operations.push(db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
-      VALUES(?,?,?,?,0,0,?,?)`).bind(crypto.randomUUID(),id,category,interest,now,now));
-  }
+  // Produtos escolhidos no cadastro (sem valor: o valor entra depois, na proposta). Sem escolha, reconhece pelo interesse.
+  const chosen=normalizeProducts(Array.isArray(p.products)?p.products.map((x:any)=>({...x,amount_cents:0})):[])||[];
+  const guess=matchInterest(v('interest'));
+  const initialProducts=chosen.length?chosen:guess?[{...guess,amount_cents:0}]:[];
+  initialProducts.forEach((product,position)=>operations.push(db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
+      VALUES(?,?,?,?,0,?,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,position,now,now)));
   const user=currentUser(req);
   operations.push(db.prepare(`INSERT INTO lead_stage_history(id,lead_id,from_stage,to_stage,changed_by,changed_by_name,changed_at)
     VALUES(?,?,'',?,?,?,?)`).bind(crypto.randomUUID(),id,INITIAL_STAGES.includes(p.stage)?p.stage:'novo',user?.id||'',user?.name||'',now));

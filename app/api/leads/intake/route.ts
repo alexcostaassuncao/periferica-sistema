@@ -1,4 +1,5 @@
 import {database} from '../../../../db/raw';
+import {matchInterest} from '../../../../db/produtos';
 
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const ATTRIBUTION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'] as const;
@@ -47,7 +48,7 @@ export async function POST(req:Request){
   if((limit?.count||0)>8)return json({error:'Limite de envios atingido. Tente novamente mais tarde.'},429);
 
   const attribution=readAttribution(req);
-  const id=crypto.randomUUID();
+  const id=crypto.randomUUID(),product=matchInterest(text(p.interest,120));
   const attributionValues={source:'Site',lead_source:'form',platform:attribution.utm_source||'',
     campaign_name:attribution.utm_campaign||'',ad_name:attribution.utm_content||'',attribution_method:'automatic',
     conversion_at:String(now),...attribution};
@@ -64,6 +65,9 @@ export async function POST(req:Request){
     db.prepare(`INSERT INTO lead_stage_history(id,lead_id,from_stage,to_stage,changed_by,changed_by_name,changed_at)
       VALUES(?,?,'','novo','form','Formulário do site',?)`).bind(crypto.randomUUID(),id,now),
     db.prepare(`INSERT INTO lead_attribution_history(id,lead_id,changed_by,changed_by_name,old_data,new_data,created_at)
-      VALUES(?,?,'form','Formulário do site','{}',?,?)`).bind(crypto.randomUUID(),id,JSON.stringify(attributionValues),now)]);
+      VALUES(?,?,'form','Formulário do site','{}',?,?)`).bind(crypto.randomUUID(),id,JSON.stringify(attributionValues),now),
+    // O que o lead escolheu vira produto da oportunidade, já reconhecido no catálogo (sem valor: entra na proposta).
+    ...(product?[db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
+      VALUES(?,?,?,?,0,0,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,now,now)]:[])]);
   return json({ok:true});
 }
