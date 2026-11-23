@@ -7,7 +7,7 @@ import {PRODUCT_CATALOG,normalizeProductInterest,resolveProductInterests} from '
 const json=(d:any,s=200)=>Response.json(d,{status:s,headers:{'Cache-Control':'no-store'}});
 const denied=()=>json({error:'Você não tem acesso ao Comercial.'},403);
 const SITUATIONS=['andamento','espera','arquivado'];
-const INITIAL_STAGES=['novo','contato','reuniao','proposta'];
+const INITIAL_STAGES=['novo','contato','proposta'];
 const FIELDS:Record<string,number>={company:120,segment:80,source:60,contact_name:120,phone:40,email:200,interest:120,notes:4000,reason:200,loss_reason:1000,return_at:20,
   utm_source:120,utm_medium:120,utm_campaign:120,utm_content:120,utm_term:120,gclid:300,fbclid:300,lead_source:30,platform:60,
   campaign_name:120,ad_name:120,reference_code:40};
@@ -41,7 +41,8 @@ const productSnapshot=(products:any[])=>products.map(({category,name,amount_cent
 export async function GET(req:Request){
   if(!canAccess(req,'comercial'))return denied();
   const db=database();
-  const leads=(await db.prepare('SELECT * FROM leads ORDER BY updated_at DESC').all()).results as any[];
+  const leads=(await db.prepare(`SELECT l.*,m.date AS meeting_date,m.start_time AS meeting_start FROM leads l
+    LEFT JOIN meetings m ON m.id=l.meeting_id ORDER BY l.updated_at DESC`).all()).results as any[];
   const ids=leads.map(lead=>lead.id),canViewValues=canViewAmounts(req);
   if(!ids.length)return json({leads:[],owners:await owners(),canViewValues,catalog:PRODUCT_CATALOG});
   const placeholders=ids.map(()=>'?').join(',');
@@ -166,6 +167,7 @@ export async function PATCH(req:Request){
   }
   if(p.stage!==undefined){
     if(!STAGES.includes(p.stage))return json({error:'Etapa inválida.'},400);
+    if(p.stage==='reuniao'&&before.stage!=='reuniao')return json({error:'Agende a reunião na Agenda para avançar o lead.'},409);
     if(p.stage==='fechado'&&before.stage!=='fechado')return json({error:'Só a confirmação da assinatura do contrato pode fechar uma oportunidade.'},409);
     if(before.stage==='fechado'&&p.stage!=='fechado')return json({error:'Uma oportunidade com contrato assinado não pode sair de Fechado.'},409);
     if(p.stage==='aguardando_contrato'&&before.stage!=='aguardando_contrato')return json({error:'Use Gerar contrato para mover a oportunidade para Aguardando contrato.'},409);

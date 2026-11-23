@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="js/app.js"></script>
 <script src="js/contrato-form.js"></script>
+<script src="js/reuniao.js"></script>
 <style>
   .col-head{border-radius:8px;border-bottom:0;padding:9px 10px;background:color-mix(in srgb,var(--c) 22%,transparent)}
   .kcard .src{align-self:flex-start}
@@ -251,6 +252,8 @@ function card(l){
     ${l.contact_name?`<div class="contact"><i data-lucide="user"></i>${PF.esc(l.contact_name)}</div>`:''}
     <div class="acts">${l.phone?`<a class="wa" href="${wa(l.phone)}" target="_blank" rel="noopener"><i data-lucide="message-circle"></i>WhatsApp</a><a class="icon-btn" href="tel:${l.phone.replace(/\D/g,'')}" aria-label="Ligar"><i data-lucide="phone"></i></a>`:''}
       ${l.email?`<a class="icon-btn" href="mailto:${PF.esc(l.email)}" aria-label="Email"><i data-lucide="mail"></i></a>`:''}</div>
+    ${l.stage==='contato'?`<button type="button" class="btn btn-ghost btn-sm" data-book-meeting="${PF.esc(l.id)}"><i data-lucide="calendar-plus"></i>Agendar reunião</button>`:''}
+    ${l.stage==='reuniao'?`<div class="small muted">${l.meeting_date?`${PF.esc(l.meeting_date.split('-').reverse().join('/'))} às ${PF.esc(l.meeting_start)}`:'Sem reunião vinculada'}</div>`:''}
     ${summary?`<div class="small"><b>${PF.esc(summary)}</b>${canViewValues?`<div class="muted">Total: ${brlCents(total)}</div>`:''}</div>`:''}
     ${l.stage==='venda_perdida'&&l.loss_reason?`<div class="muted small"><b>Motivo:</b> ${PF.esc(l.loss_reason)}</div>`:''}
     ${contractSummary?`<a href="contratos.html" class="badge ${alerts.length?'b-yellow':'b-blue'}" style="align-self:flex-start" title="${PF.esc(contractSummary)}"><i data-lucide="file-text" style="width:13px"></i>${PF.esc(contractSummary)}${alerts.length?' · alerta':''}</a>`:''}
@@ -276,7 +279,12 @@ function render(){
   ${dashboardHTML(active)}
   <div class="tabs">${[['andamento','Em andamento'],['espera','Em espera'],['arquivado','Arquivados']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}<span class="count">${by(k).filter(match).length}</span></button>`).join('')}</div>
   ${tab==='andamento'?`
-  <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
+  <div class="kanban mb">${STAGES.map(([k,label,c])=>{const items=active.filter(l=>l.stage===k);
+    if(k==='reuniao'){
+      const dateKey=l=>l.meeting_date?`${l.meeting_date}T${l.meeting_start}`:'9999';
+      items.sort((a,b)=>dateKey(a).localeCompare(dateKey(b)));
+    }
+    return `<div class="col" data-col="${k}"><div class="col-head" style="--c:${c}">${label}<span class="n">${items.length}</span></div>${items.map(card).join('')||`<div class="empty-col">${k==='novo'&&!leads.length?'Clique em "Novo lead" para começar':k==='reuniao'?'Agende uma reunião em Em contato':'Arraste um lead para cá'}</div>`}</div>`;}).join('')}</div>`
   :`<div class="card mb">${by(tab).filter(match).length?`<table class="tbl"><thead><tr><th>Lead</th><th>Motivo</th>${tab==='espera'?'<th>Retomar em</th>':''}<th>Responsável</th><th></th></tr></thead><tbody>
     ${by(tab).filter(match).map(l=>`<tr><td><div class="who">${PF.chip(l.company)}<div><b>${PF.esc(l.company)}</b><small>${PF.esc(l.segment||'—')}</small></div></div></td><td>${PF.esc(l.reason)}</td>${tab==='espera'?`<td>${l.return_at?l.return_at.split('-').reverse().join('/'):'—'}</td>`:''}<td>${PF.esc(ownerName(l.owner_id)||'—')}</td>
       <td class="right"><button class="btn btn-ghost btn-sm" data-react="${l.id}"><i data-lucide="rotate-ccw"></i>Reativar oportunidade</button></td></tr>`).join('')}
@@ -318,12 +326,20 @@ function render(){
   if(tab==='andamento'){
     PF.kanban(content.querySelector('.kanban'),(id,col)=>{
       const l=leads.find(x=>x.id===id);if(!l||l.stage===col)return;
+      if(col==='reuniao'){PF.toast('Use Agendar reunião no cartão em Em contato.','err');return render();}
       if(col==='fechado'){PF.toast('Fechado só é permitido após confirmar a assinatura do contrato.','err');return load();}
       if(col==='aguardando_contrato'){PF.toast('Use Gerar contrato para mover a oportunidade para esta etapa.','err');return load();}
       if(col==='venda_perdida'){markLost(l);return load();}
       if(col==='proposta'){PF.toast('Abra a oportunidade para registrar produtos e valores da proposta.','err');openLead(l);return load();}
       if(l.stage==='fechado'){PF.toast('Uma oportunidade fechada não pode ser movida manualmente.','err');return load();}
       patch({id,stage:col},`${l.company} → ${stageLabel(col)}`);
+    });
+    content.querySelectorAll('[data-book-meeting]').forEach(button=>button.onclick=async()=>{
+      const lead=leads.find(l=>l.id===button.dataset.bookMeeting);
+      if(!lead)return;
+      button.disabled=true;
+      try{await PF.Reuniao.form({lead_id:lead.id,title:`Reunião comercial · ${lead.company}`},{onDone:load});}
+      finally{button.disabled=false;}
     });
     content.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>generate(leads.find(l=>l.id===b.dataset.gen)));
   }
@@ -445,7 +461,7 @@ function openLead(l){
   const m=PF.modal(`<div class="modal-head"><div><h3>${PF.esc(l.company)}</h3><p class="muted small">Data da conversão: ${new Date(l.conversion_at||l.created_at).toLocaleDateString('pt-BR')}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
     <form class="stack" id="f">
       ${fields(l)}
-      <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage" ${l.stage==='fechado'?'disabled':''}>${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''} ${k==='fechado'&&l.stage!=='fechado'?'disabled':''} ${k==='aguardando_contrato'&&l.stage!=='aguardando_contrato'?'disabled':''}>${lb}</option>`).join('')}</select></label>
+      <label class="field"><span>Etapa do funil</span><select class="select-in" name="stage" ${l.stage==='fechado'?'disabled':''}>${STAGES.map(([k,lb])=>`<option value="${k}" ${k===l.stage?'selected':''} ${(k==='fechado'||k==='reuniao')&&k!==l.stage?'disabled':''} ${k==='aguardando_contrato'&&l.stage!=='aguardando_contrato'?'disabled':''}>${lb}</option>`).join('')}</select></label>
       ${productsEditor(l)}
       <label class="field" id="lossReasonField" ${l.stage==='venda_perdida'?'':'hidden'}><span>Motivo da venda perdida</span><textarea class="input" name="loss_reason" maxlength="1000" ${l.stage==='venda_perdida'?'required':'disabled'} style="min-height:80px">${PF.esc(l.loss_reason||'')}</textarea></label>
       <label class="field"><span>Anotações (triagem, interações, combinados)</span><textarea class="input" name="notes" style="min-height:90px">${PF.esc(l.notes||'')}</textarea></label>

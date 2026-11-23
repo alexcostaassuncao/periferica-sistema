@@ -26,12 +26,13 @@ async function conflict(place:string,date:string,start:string,end:string,ignore:
 
 export async function GET(req:Request){
   const u=currentUser(req) as U|null;
-  if(!u||!pode(req))return denied();
   const q=new URL(req.url).searchParams,db=database();
+  const agendaAccess=pode(req);
+  if(!u||(!agendaAccess&&!(q.get('rooms')&&canAccess(req,'comercial'))))return denied();
   // Salas livres num horário
   if(q.get('rooms')){
     const date=q.get('date')||'',start=q.get('start')||'',end=q.get('end')||'';
-    const out=await Promise.all(Object.entries(ROOMS).map(async([k,label])=>{const c=await conflict(k,date,start,end,q.get('ignore')||'');return {place:k,label,free:!c,busy:c?`${c.title} (${c.start_time}–${c.end_time})`:''};}));
+    const out=await Promise.all(Object.entries(ROOMS).map(async([k,label])=>{const c=await conflict(k,date,start,end,q.get('ignore')||'');return {place:k,label,free:!c,busy:c?`${agendaAccess?c.title+' ':''}(${c.start_time}–${c.end_time})`:''};}));
     return json({rooms:out});
   }
   const v=vis(u);
@@ -58,11 +59,17 @@ export async function GET(req:Request){
 // Criar ou editar (mesmo registro pela Agenda ou pela Gestão)
 export async function POST(req:Request){
   const u=currentUser(req) as U|null;
-  if(!u||!pode(req)||!sameOrigin(req))return denied();
-  const p:any=await req.json().catch(()=>({}));
+  if(!u||!sameOrigin(req))return denied();
+  const p=await req.json().catch(()=>null);
+  if(!p||typeof p!=='object')return json({error:'Dados da reunião inválidos.'},400);
+  const booking=p.lead_id!==undefined;
+  if(booking?(!canAccess(req,'comercial')||p.id||p.client_id):!pode(req))return denied();
+  if(booking&&(typeof p.lead_id!=='string'||!p.lead_id))return json({error:'Lead inválido.'},400);
   const db=database(),now=Date.now();
   const title=s(p.title,160);if(title.length<3)return json({error:'Dê um título à reunião.'},400);
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(p.date||''))return json({error:'Escolha a data.'},400);
+  const date=p.date;
+  const day=typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T00:00:00Z'):null;
+  if(!day||!Number.isFinite(day.getTime())||day.toISOString().slice(0,10)!==date)return json({error:'Escolha uma data válida.'},400);
   if(!hhmm.test(p.start_time||'')||!hhmm.test(p.end_time||''))return json({error:'Informe o horário de início e de fim.'},400);
   if(p.end_time<=p.start_time)return json({error:'O fim precisa ser depois do início.'},400);
   const place=PLACES.includes(p.place)?p.place:'online';
@@ -74,7 +81,7 @@ export async function POST(req:Request){
   if(ids.length){const ok=(await db.prepare(`SELECT id FROM users WHERE active=1 AND id IN (${ids.map(()=>'?').join(',')})`).bind(...ids).all()).results.map((r:any)=>r.id);
     const invalid=ids.filter(i=>i!=='admin'&&!ok.includes(i));if(invalid.length)return json({error:'Há participantes que não existem mais na equipe.'},400);}
   const c=await conflict(place,p.date,p.start_time,p.end_time,p.id||'');
-  if(c)return json({error:`${ROOMS[place]} ocupada nesse horário: ${c.title} (${c.start_time}–${c.end_time}). Escolha outro horário ou local.`},409);
+  if(c)return json({error:`${ROOMS[place]} ocupada nesse horário: ${pode(req)?c.title+' ':''}(${c.start_time}–${c.end_time}). Escolha outro horário ou local.`},409);
   const vals=[client?.id||null,title,p.date,p.start_time,p.end_time,place,meet,s(p.description,4000),JSON.stringify(ids)];
   if(p.id){
     const old:any=await db.prepare('SELECT id,client_id FROM meetings WHERE id=?').bind(p.id).first();
@@ -84,7 +91,25 @@ export async function POST(req:Request){
     return json({id:p.id});
   }
   const id=crypto.randomUUID();
-  await db.prepare('INSERT INTO meetings (id,client_id,title,date,start_time,end_time,place,meet_url,description,participants,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,...vals,u.name,now,now).run();
+  const insert='INSERT INTO meetings (id,client_id,title,date,start_time,end_time,place,meet_url,description,participants,created_by,created_at,updated_at)';
+  const values=[id,...vals,u.name,now,now];
+  if(booking){
+    const [created]=await db.batch([
+      db.prepare(insert+` SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? FROM leads
+        WHERE id=? AND stage='contato' AND situation='andamento'
+          AND (? NOT IN ('sala','estudio') OR NOT EXISTS (
+            SELECT 1 FROM meetings WHERE place=? AND date=? AND start_time<? AND end_time>?
+          ))`).bind(...values,p.lead_id,place,place,date,p.end_time,p.start_time),
+      db.prepare(`UPDATE leads SET stage='reuniao',meeting_id=?,updated_at=?
+        WHERE id=? AND EXISTS (SELECT 1 FROM meetings WHERE id=?)`).bind(id,now,p.lead_id,id),
+      db.prepare(`INSERT INTO lead_stage_history(id,lead_id,from_stage,to_stage,changed_by,changed_by_name,changed_at)
+        SELECT ?,?,'contato','reuniao',?,?,? FROM meetings WHERE id=?`)
+        .bind(crypto.randomUUID(),p.lead_id,u.id,u.name,now,id),
+    ]);
+    if(!created.meta.changes)return json({error:'O lead precisa estar em contato e o horário precisa estar disponível.'},409);
+    return json({id});
+  }
+  await db.prepare(insert+' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values).run();
   if(client)await logEvent(client.id,'reuniao',`Reunião agendada: ${title}`,`${p.date.split('-').reverse().join('/')} das ${p.start_time} às ${p.end_time}${meet?'\nMeet: '+meet:''}`,u,`${p.date}T${p.start_time}:00`);
   return json({id});
 }
@@ -140,7 +165,14 @@ export async function DELETE(req:Request){
   const p:any=await req.json().catch(()=>({}));
   const m:any=await database().prepare('SELECT id,client_id,title FROM meetings WHERE id=?').bind(p.id).first();
   if(!m)return json({error:'Reunião não encontrada.'},404);
-  await database().prepare('DELETE FROM meetings WHERE id=?').bind(m.id).run();
+  const db=database(),now=Date.now();
+  await db.batch([
+    db.prepare(`INSERT INTO lead_stage_history(id,lead_id,from_stage,to_stage,reason,changed_by,changed_by_name,changed_at)
+      SELECT ?,id,'reuniao','contato','Reunião cancelada',?,?,? FROM leads WHERE meeting_id=? AND stage='reuniao'`)
+      .bind(crypto.randomUUID(),u.id,u.name,now,m.id),
+    db.prepare("UPDATE leads SET stage='contato',meeting_id=NULL,updated_at=? WHERE meeting_id=? AND stage='reuniao'").bind(now,m.id),
+    db.prepare('DELETE FROM meetings WHERE id=?').bind(m.id),
+  ]);
   if(m.client_id)await logEvent(m.client_id,'reuniao',`Reunião cancelada: ${m.title}`,'',u);
   return json({ok:true});
 }

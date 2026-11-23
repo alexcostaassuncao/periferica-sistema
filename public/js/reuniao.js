@@ -10,13 +10,13 @@
   const getClients=async()=>clients||(clients=(await PF.api('/api/clients')).clients);
 
   async function form(mt={},{onDone}={}){
-    const [ps,cs]=await Promise.all([getPeople().catch(()=>[]),getClients().catch(()=>[])]);
+    const [ps,cs]=await Promise.all([getPeople().catch(()=>[]),mt.lead_id?[]:getClients().catch(()=>[])]);
     let parts=[...(mt.participants||[])];
     const hoje=new Date().toISOString().slice(0,10);
-    const m=PF.modal(`<div class="modal-head"><div><h3>${mt.id?'Editar reunião':'Nova reunião'}</h3><p class="muted small">Aparece na Agenda, na Gestão do cliente e no histórico.</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
+    const m=PF.modal(`<div class="modal-head"><div><h3>${mt.id?'Editar reunião':'Nova reunião'}</h3><p class="muted small">${mt.lead_id?'Ao salvar, o lead avança para Reunião.':'Aparece na Agenda, na Gestão do cliente e no histórico.'}</p></div><button class="icon-btn" data-close><i data-lucide="x"></i></button></div>
       <form class="stack" id="f">
         <label class="field"><span>Título *</span><input class="input" name="title" required value="${esc(mt.title||'')}" placeholder="Ex.: Reunião mensal"></label>
-        <label class="field"><span>Cliente</span><select class="select-in" name="client_id"><option value="">— Reunião interna —</option>${cs.map(c=>`<option value="${c.id}" ${c.id===mt.client_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
+        ${mt.lead_id?'':`<label class="field"><span>Cliente</span><select class="select-in" name="client_id"><option value="">— Reunião interna —</option>${cs.map(c=>`<option value="${c.id}" ${c.id===mt.client_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`}
         <div class="grid g3"><label class="field"><span>Data *</span><input class="input" type="date" name="date" required value="${esc(mt.date||hoje)}"></label>
           <label class="field"><span>Início *</span><input class="input" type="time" name="start_time" required value="${esc(mt.start_time||'09:00')}"></label>
           <label class="field"><span>Fim *</span><input class="input" type="time" name="end_time" required value="${esc(mt.end_time||'10:00')}"></label></div>
@@ -39,7 +39,7 @@
     ['place','date','start_time','end_time'].forEach(k=>F[k].addEventListener('change',rooms));
     drawParts();rooms();PF.icons();
     m.el.querySelector('#f').onsubmit=async e=>{e.preventDefault();const b=m.el.querySelector('#save');b.disabled=true;
-      const body={id:mt.id,...Object.fromEntries(new FormData(e.target)),participants:parts};
+      const body={id:mt.id,lead_id:mt.lead_id,...Object.fromEntries(new FormData(e.target)),participants:parts};
       try{const r=await PF.api('/api/meetings',{method:'POST',body});m.close();PF.toast('Reunião salva.','ok');onDone&&onDone(r.id);}catch(x){PF.toast(x.message,'err');b.disabled=false;}};
     const del=m.el.querySelector('#del');if(del)del.onclick=async()=>{if(!await PF.confirm('Cancelar (apagar) esta reunião?'))return;try{await PF.api('/api/meetings',{method:'DELETE',body:{id:mt.id}});m.close();PF.toast('Reunião cancelada.','ok');onDone&&onDone();}catch(x){PF.toast(x.message,'err');}};
   }
