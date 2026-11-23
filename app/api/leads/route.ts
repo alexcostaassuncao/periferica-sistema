@@ -82,7 +82,9 @@ export async function POST(req:Request){
   if(p.products!==undefined&&!Array.isArray(p.products))return json({error:'A lista de produtos é inválida.'},400);
   const selectedProducts=p.products===undefined?[]:normalizeProducts(p.products.map((item:any)=>typeof item==='string'?item:{...item,amount_cents:0}));
   if(p.products!==undefined&&!selectedProducts)return json({error:'Revise os produtos ou serviços selecionados.'},400);
-  const interestInputs=[p.products,p.interests,rawInterest].flatMap(value=>value===undefined?[]:Array.isArray(value)?value:[value]);
+  const interestInputs=p.interests!==undefined
+    ?[p.interests].flat()
+    :selectedProducts?.length?[]:[rawInterest].flat();
   const inferredProducts=resolveProductInterests([...interestInputs,
     ...(String(p.other_service||'').trim()?['Outros serviços']:[])]);
   const initialProducts=normalizeProducts([...(selectedProducts||[]),...inferredProducts]);

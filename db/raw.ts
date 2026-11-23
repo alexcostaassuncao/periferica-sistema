@@ -28,8 +28,11 @@ export class Statement{
 
 const db={
   prepare:(sql:string)=>new Statement(sql),
-  // Executa todas as instruções numa única transação, como o batch do D1.
-  async batch(statements:Statement[]):Promise<RunResult[]>{const results=await getClient().batch(statements.map(s=>({sql:s.sql,args:s.args})),'write');return results.map(toResult);},
+  // Executa todas as instruções numa única transação.
+  async batch(statements:Statement[],mode:'read'|'write'='write'):Promise<RunResult[]>{
+    const results=await getClient().batch(statements.map(s=>({sql:s.sql,args:s.args})),mode);
+    return results.map(toResult);
+  },
 };
 
 export function database(){return db;}

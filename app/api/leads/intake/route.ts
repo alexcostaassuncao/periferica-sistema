@@ -1,3 +1,4 @@
+import {createHash,timingSafeEqual} from 'node:crypto';
 import {database} from '../../../../db/raw';
 import {PRODUCT_CATALOG,resolveProductInterests} from '../../../../db/produtos';
 
@@ -6,8 +7,21 @@ const ATTRIBUTION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','
 
 function text(value:unknown,max=500){return String(value??'').trim().slice(0,max);}
 
+const CHANNEL_NAMES={whatsapp_api:'WhatsApp',meta_form:'Formulário Meta',integration:'Integração'};
+
 export async function GET(){
-  return json({catalog:PRODUCT_CATALOG});
+  return json({
+    catalog:PRODUCT_CATALOG,
+    initial_message:'Olá! Quais serviços da Periférica interessam à sua empresa? Você pode selecionar mais de um.',
+    form_path:'/formulario.html',
+  });
+}
+
+function integrationAuthorized(req:Request){
+  const secret=process.env.LEAD_INTAKE_SECRET||'';
+  const sent=Buffer.from(req.headers.get('authorization')||'');
+  const expected=Buffer.from('Bearer '+secret);
+  return secret.length>=16&&sent.length===expected.length&&timingSafeEqual(sent,expected);
 }
 
 function validOrigin(req:Request){
@@ -34,11 +48,18 @@ async function requestKey(req:Request){
 }
 
 export async function POST(req:Request){
-  if(!validOrigin(req))return json({error:'Origem da solicitação inválida.'},403);
-  const p:any=await req.json().catch(()=>null);
-  if(!p||typeof p!=='object')return json({error:'Dados do formulário inválidos.'},400);
+  const integrated=req.headers.has('authorization');
+  if(integrated&&!integrationAuthorized(req))return json({error:'Integração não autorizada.'},401);
+  if(!integrated&&!validOrigin(req))return json({error:'Origem da solicitação inválida.'},403);
+  const p=await req.json().catch(()=>null);
+  if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Dados do formulário inválidos.'},400);
+  const channel=integrated?p.lead_source:'form';
+  const externalId=typeof p.external_id==='string'?p.external_id.trim():'';
+  if(integrated&&(typeof channel!=='string'||!Object.hasOwn(CHANNEL_NAMES,channel)||!externalId||externalId.length>200))
+    return json({error:'Informe um canal de integração válido e o identificador externo da oportunidade.'},400);
   if(text(p.website,200))return json({error:'Não foi possível enviar o formulário.'},400);
-  const company=text(p.company,120),contact=text(p.contact_name,120),phone=text(p.phone,40),email=text(p.email,200);
+  const contact=text(p.contact_name,120),phone=text(p.phone,40),email=text(p.email,200);
+  const company=text(p.company,120)||(integrated?(contact||phone||email).slice(0,120):'');
   if(company.length<2||(!phone&&!email))return json({error:'Informe a empresa e ao menos um meio de contato.'},400);
   if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:'Informe um email válido.'},400);
   if(p.products!==undefined&&(!Array.isArray(p.products)||p.products.length>20||
@@ -48,41 +69,55 @@ export async function POST(req:Request){
     p.interests.some((item:unknown)=>typeof item!=='string'&&(!item||typeof item!=='object'||typeof (item as any).name!=='string'))))
     return json({error:'A seleção de produtos ou serviços é inválida.'},400);
 
-  const now=Date.now(),windowStart=now-60*60*1000,key=await requestKey(req),db=database();
-  await db.prepare(`INSERT INTO lead_intake_limits(ip_hash,window_start,count) VALUES(?,?,1)
+  const now=Date.now(),db=database();
+  if(!integrated){
+    const windowStart=now-60*60*1000,key=await requestKey(req);
+    await db.prepare(`INSERT INTO lead_intake_limits(ip_hash,window_start,count) VALUES(?,?,1)
     ON CONFLICT(ip_hash) DO UPDATE SET
       count=CASE WHEN lead_intake_limits.window_start<=? THEN 1 ELSE lead_intake_limits.count+1 END,
       window_start=CASE WHEN lead_intake_limits.window_start<=? THEN excluded.window_start ELSE lead_intake_limits.window_start END`)
     .bind(key,now,windowStart,windowStart).run();
-  const limit=await db.prepare('SELECT count FROM lead_intake_limits WHERE ip_hash=?').bind(key).first<{count:number}>();
-  if((limit?.count||0)>8)return json({error:'Limite de envios atingido. Tente novamente mais tarde.'},429);
+    const limit=await db.prepare('SELECT count FROM lead_intake_limits WHERE ip_hash=?').bind(key).first<{count:number}>();
+    if((limit?.count||0)>8)return json({error:'Limite de envios atingido. Tente novamente mais tarde.'},429);
+  }
 
-  const attribution=readAttribution(req);
-  const productInputs=[p.products,p.interests,p.interest].flatMap(value=>value===undefined?[]:Array.isArray(value)?value:[value]);
+  const attribution=integrated?{}:readAttribution(req);
+  const selections=[...(p.products||[]),...(p.interests||[])];
+  const productInputs=selections.length?selections:Array.isArray(p.interest)?p.interest:[p.interest];
   const products=resolveProductInterests([...productInputs,
     ...(text(p.other_service,120)?['Outros serviços']:[])]);
-  const rawInterest=p.interest??p.interests??products.map(product=>product.name);
+  const rawInterest=p.interest||products.map(product=>product.name);
   const interestText=Array.isArray(rawInterest)?rawInterest.map((value:any)=>typeof value==='string'?value:text(value?.name,120)).filter(Boolean).join(', '):text(rawInterest,120);
-  const interest=[interestText,text(p.other_service,120)].filter(Boolean).join(': ').slice(0,120);
-  const id=crypto.randomUUID();
-  const attributionValues={source:'Site',lead_source:'form',platform:attribution.utm_source||'',
-    campaign_name:attribution.utm_campaign||'',ad_name:attribution.utm_content||'',attribution_method:'automatic',
-    conversion_at:String(now),...attribution};
-  await db.batch([db.prepare(`INSERT INTO leads(
+  const interest=[text(p.other_service,120),interestText].filter(Boolean).join(' — ').slice(0,120);
+  const id=integrated?'intake-'+createHash('sha256').update(JSON.stringify([channel,externalId])).digest('hex'):crypto.randomUUID();
+  const source=integrated?CHANNEL_NAMES[channel as keyof typeof CHANNEL_NAMES]:'Site';
+  const actor=integrated?source:'Formulário do site';
+  const attributionValues={source,lead_source:channel,...attribution,
+    platform:integrated?text(p.platform,120):attribution.utm_source||'',
+    campaign_name:integrated?text(p.campaign_name,200):attribution.utm_campaign||'',
+    ad_name:integrated?text(p.ad_name,200):attribution.utm_content||'',
+    attribution_method:'automatic',conversion_at:String(now)};
+  const statements=[db.prepare(`INSERT INTO leads(
     id,company,segment,source,contact_name,phone,email,interest,notes,stage,situation,
     created_at,updated_at,lead_source,platform,campaign_name,ad_name,attribution_method,
     conversion_at,attribution_raw,utm_source,utm_medium,utm_campaign,utm_content,utm_term,gclid,fbclid
-  ) VALUES(?,?,?,'Site',?,?,?,?,'','novo','andamento',?,?, 'form',?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(id,company,text(p.segment,80),contact,phone,email,interest,now,now,
-      attribution.utm_source||'',attribution.utm_campaign||'',attribution.utm_content||'',
+  ) VALUES(?,?,?,?,?,?,?,?,'','novo','andamento',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .bind(id,company,text(p.segment,80),source,contact,phone,email,interest,now,now,channel,
+      attributionValues.platform,attributionValues.campaign_name,attributionValues.ad_name,
       'automatic',now,JSON.stringify(attribution),
       attribution.utm_source||'',attribution.utm_medium||'',attribution.utm_campaign||'',
       attribution.utm_content||'',attribution.utm_term||'',attribution.gclid||'',attribution.fbclid||''),
     db.prepare(`INSERT INTO lead_stage_history(id,lead_id,from_stage,to_stage,changed_by,changed_by_name,changed_at)
-      VALUES(?,?,'','novo','form','Formulário do site',?)`).bind(crypto.randomUUID(),id,now),
+      VALUES(?,?,'','novo',?,?,?)`).bind(crypto.randomUUID(),id,channel,actor,now),
     db.prepare(`INSERT INTO lead_attribution_history(id,lead_id,changed_by,changed_by_name,old_data,new_data,created_at)
-      VALUES(?,?,'form','Formulário do site','{}',?,?)`).bind(crypto.randomUUID(),id,JSON.stringify(attributionValues),now),
+      VALUES(?,?,?,?,'{}',?,?)`).bind(crypto.randomUUID(),id,channel,actor,JSON.stringify(attributionValues),now),
     ...products.map((product,position)=>db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
-      VALUES(?,?,?,?,0,?,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,position,now,now))]);
-  return json({ok:true});
+      VALUES(?,?,?,?,0,?,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,position,now,now))];
+  try{
+    await db.batch(statements);
+  }catch(error){
+    // A transação concorrente pode já ter gravado a mesma oportunidade.
+    if(!integrated||!await db.prepare('SELECT id FROM leads WHERE id=?').bind(id).first())throw error;
+  }
+  return json(integrated?{ok:true,id}:{ok:true});
 }

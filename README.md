@@ -74,7 +74,25 @@ Em GitHub → Settings → Secrets and variables → Actions, crie:
 - A ficha do lead mostra a origem, os UTMs, a data de conversão e os históricos de alterações da atribuição e de etapas do funil. **Relatórios** agrega leads e clientes por plataforma, campanha, anúncio e canal, com filtro de período.
 - O cadastro atual continua disponível e leads registrados manualmente são marcados como tais.
 
-**Integrações ainda não conectadas:** não há webhook de Lead Ads nem integração com a API oficial do WhatsApp Business neste projeto. A conexão Meta existente é para publicação e não solicita permissões de recuperação de leads. Portanto, formulários nativos da Meta e referências de conversas do WhatsApp não são recebidos automaticamente; os canais correspondentes no CRM servem apenas para classificação manual até que os produtos, permissões e credenciais de webhook sejam configurados. A API do WhatsApp não deve ser tratada como fonte de UTMs tradicionais; seus metadados de referência, quando disponíveis na integração, precisam ser mapeados separadamente.
+### Atendimento inicial e integração de canais
+
+Na automação do canal, envie o link absoluto de `/formulario.html` na mensagem inicial para oferecer a seleção múltipla. Se o canal tiver uma interface própria de seleção múltipla, use `GET /api/leads/intake` para obter a mensagem inicial (`initial_message`) e as opções agrupadas do catálogo (`catalog`).
+
+Para enviar as escolhas ao CRM, configure `LEAD_INTAKE_SECRET` no servidor e use `POST /api/leads/intake` com `Authorization: Bearer <LEAD_INTAKE_SECRET>` e `Content-Type: application/json`. Exemplo de corpo:
+
+```json
+{
+  "lead_source": "whatsapp_api",
+  "external_id": "oportunidade-123",
+  "company": "Empresa Exemplo",
+  "phone": "+5511999999999",
+  "products": ["Gestão de Marketing", "Criação de Sites"]
+}
+```
+
+Envie as escolhas juntas após concluir o atendimento inicial. Use um identificador estável e único por oportunidade no canal, inclusive em reenvios. O mesmo par `lead_source` e `external_id` retorna o mesmo lead e preserva as edições do vendedor. Os canais aceitos são `whatsapp_api`, `meta_form` e `integration`. Sem seleção, omita `products` e o vendedor poderá preencher na ficha do lead.
+
+A configuração da mensagem automática e o envio do evento dependem do provedor do canal. O projeto oferece o formulário e o endpoint de entrada. A conexão existente com a Meta é para publicação.
 
 ## Próximas redes
 YouTube e LinkedIn entram como novos valores de `network` em `social_accounts`, com um adaptador novo em `db/publish.ts`.

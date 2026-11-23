@@ -284,7 +284,7 @@ function render(){
     (!filters.product||(l.products||[]).some(p=>p.name===filters.product))&&(!filters.stage||l.stage===filters.stage)&&
     (!q||(l.company+' '+l.contact_name+' '+l.email+' '+l.phone).toLowerCase().includes(q))&&
     (fromAt===null||eventDate(l)>=fromAt)&&(toAt===null||eventDate(l)<=toAt);
-  const active=by('andamento').filter(match),productOptions=[...new Set(leads.flatMap(l=>(l.products||[]).map(p=>p.name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const active=by('andamento').filter(match),productOptions=[...new Set([...Object.values(catalog).flat(),...leads.flatMap(l=>(l.products||[]).map(p=>p.name)).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   content.innerHTML=`
   <div class="crm-top">${periodHTML()}${filtersHTML(productOptions)}</div>
   <p class="muted tiny" style="margin:-6px 0 12px">Datas consideradas: leads recebidos pela entrada · propostas pelo envio/renegociação · fechamentos pela assinatura de todos os contratos obrigatórios · perdas pela data da perda.</p>

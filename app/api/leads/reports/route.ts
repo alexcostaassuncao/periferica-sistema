@@ -20,13 +20,15 @@ export async function GET(req:Request){
   if(product){common.push('EXISTS (SELECT 1 FROM lead_products p WHERE p.lead_id=l.id AND p.name=?)');commonArgs.push(product);}
   const query=params.get('q')?.trim().slice(0,200).toLowerCase()||'';
   if(query){common.push("lower(l.company||' '||l.contact_name||' '||l.email||' '||l.phone) LIKE ?");commonArgs.push('%'+query+'%');}
-  const leadRows=(await db.prepare(`SELECT l.id,l.stage,l.created_at,l.proposal_sent_at,l.accepted_at,l.signed_at,l.lost_at
-    FROM leads l${common.length?' WHERE '+common.join(' AND '):''}`).bind(...commonArgs).all()).results as any[];
-  const leadIds=leadRows.map(row=>String(row.id)),idWhere=leadIds.length?`lead_id IN (${leadIds.map(()=>'?').join(',')})`:'1=0';
-  const [productRows,contractRows]=leadIds.length?await Promise.all([
-    db.prepare(`SELECT lead_id,name,amount_cents FROM lead_products WHERE ${idWhere}`).bind(...leadIds).all(),
-    db.prepare(`SELECT lead_id,amount_cents FROM contracts WHERE ${idWhere} AND status='assin' AND required=1`).bind(...leadIds).all(),
-  ]).then(results=>results.map(result=>result.results as any[])):[[],[]];
+  const whereLeads=common.length?' WHERE '+common.join(' AND '):'';
+  const [leadRows,productRows,contractRows]=await db.batch([
+    db.prepare(`SELECT l.id,l.stage,l.created_at,l.proposal_sent_at,l.accepted_at,l.signed_at,l.lost_at
+      FROM leads l${whereLeads}`).bind(...commonArgs),
+    db.prepare(`SELECT p.lead_id,p.name,p.amount_cents FROM leads l
+      JOIN lead_products p ON p.lead_id=l.id${whereLeads}`).bind(...commonArgs),
+    db.prepare(`SELECT c.lead_id,c.amount_cents FROM leads l
+      JOIN contracts c ON c.lead_id=l.id AND c.status='assin' AND c.required=1${whereLeads}`).bind(...commonArgs),
+  ],'read').then(results=>results.map(result=>result.results));
   const productsByLead=new Map<string,any[]>(),signedValueByLead=new Map<string,number>();
   for(const row of productRows){const list=productsByLead.get(row.lead_id)||[];list.push(row);productsByLead.set(row.lead_id,list);}
   for(const row of contractRows)signedValueByLead.set(row.lead_id,(signedValueByLead.get(row.lead_id)||0)+Number(row.amount_cents||0));
