@@ -1,33 +1,52 @@
-import {PLANOS} from '../lib/contratos/modelos';
+export type ProductInterest={category:'gestao'|'projeto'|'outro';name:string};
 
-/* Catálogo de produtos/serviços do Comercial. Os planos de Gestão são os mesmos dos contratos (ADS PRO, SOCIAL MEDIA...),
-   então o que é escolhido no lead já casa com o modelo do contrato. Valores NÃO ficam aqui: são definidos na proposta. */
+// This catalog is shared by the CRM, public intake form, and channel integrations.
 export const PRODUCT_CATALOG:{gestao:string[];projeto:string[];outro:string[]}={
-  gestao:Object.keys(PLANOS),
-  projeto:['Website institucional','Landing page','E-commerce','Blog','Web banner','Banner impresso','Identidade visual','Material gráfico'],
-  outro:[],
+  gestao:['Gestão de Marketing','Tráfego Pago'],
+  projeto:['Criação de Sites','Loja Virtual / E-commerce','Branding / Identidade Visual'],
+  outro:['Automação com IA','Outros serviços'],
 };
 
-// Reconhece o produto a partir do texto que o lead escreveu ("quero um site", "ads pro", "loja virtual"...).
-const RULES:[RegExp,'gestao'|'projeto',string][]=[
-  [/ads\s*pro.*(social|redes)|(trafego|ads|gestao).*(social|redes)|(social|redes).*(trafego|ads)/,'gestao','ADS PRO + SOCIAL MEDIA'],
-  [/ads\s*pro/,'gestao','ADS PRO'],
-  [/smart/,'gestao','SMART BUSINESS'],
-  [/trafego\s*light/,'gestao','TRÁFEGO LIGHT'],
-  [/landing|lp\b|pagina de captura/,'projeto','Landing page'],
-  [/e-?commerce|loja\s*(virtual|online)|tray/,'projeto','E-commerce'],
-  [/blog/,'projeto','Blog'],
-  [/web\s*banner/,'projeto','Web banner'],
-  [/banner/,'projeto','Banner impresso'],
-  [/identidade|logo|logotipo|marca/,'projeto','Identidade visual'],
-  [/folder|panfleto|cartao|material grafico|flyer/,'projeto','Material gráfico'],
-  [/site|website/,'projeto','Website institucional'],
-  [/social|redes sociais|instagram|conteudo/,'gestao','SOCIAL MEDIA'],
-  [/trafego|anuncio|ads|meta|google|gestao|marketing/,'gestao','ADS PRO'],
+const ALL_PRODUCTS=Object.entries(PRODUCT_CATALOG).flatMap(([category,names])=>
+  names.map(name=>({category:category as ProductInterest['category'],name})));
+const normalize=(value:string)=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+
+const RULES:[RegExp,ProductInterest][]=[
+  [/e-?commerce|loja\s*(virtual|online)|loja\b/,{category:'projeto',name:'Loja Virtual / E-commerce'}],
+  [/site|website|landing|pagina\s+(de\s+)?captura/,{category:'projeto',name:'Criação de Sites'}],
+  [/brand|identidade|logo|logotipo/,{category:'projeto',name:'Branding / Identidade Visual'}],
+  [/automat|inteligencia artificial|(?:^|\s)ia(?:\s|$)/,{category:'outro',name:'Automação com IA'}],
+  [/trafego|ads|anuncios|midia paga|paid traffic/,{category:'gestao',name:'Tráfego Pago'}],
+  [/gestao|marketing|social media|redes sociais|conteudo|smart business/,{category:'gestao',name:'Gestão de Marketing'}],
+  [/\b(outro|outros|other)\b/,{category:'outro',name:'Outros serviços'}],
 ];
-export function matchInterest(text:string):{category:'gestao'|'projeto'|'outro';name:string}|null{
-  const t=String(text||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
-  if(!t||t==='outro')return null;
-  const hit=RULES.find(([re])=>re.test(t));
-  return hit?{category:hit[1],name:hit[2]}:{category:'outro',name:String(text).trim().slice(0,120)};
+
+export function resolveProductInterests(input:unknown):ProductInterest[]{
+  const values=Array.isArray(input)?input:input===null||input===undefined||input===''?[]:[input];
+  const result=new Map<string,ProductInterest>();
+  const add=(product:ProductInterest)=>result.set(product.name,product);
+  for(const value of values){
+    const raw=typeof value==='string'?value:
+      value&&typeof value==='object'&&'name' in value?String((value as {name:unknown}).name||''):'';
+    const text=normalize(raw);
+    if(!text)continue;
+    const exact=ALL_PRODUCTS.find(product=>normalize(product.name)===text);
+    if(exact){add(exact);continue;}
+    let matched=false;
+    for(const [pattern,product] of RULES)if(pattern.test(text)){add(product);matched=true;}
+    if(!matched)add({category:'outro',name:'Outros serviços'});
+  }
+  return [...result.values()];
+}
+
+export function normalizeProductInterest(name:string,category?:string):ProductInterest|null{
+  const exact=ALL_PRODUCTS.find(product=>normalize(product.name)===normalize(name));
+  if(exact)return exact;
+  const matches=resolveProductInterests(name);
+  if(!matches.length)return null;
+  return matches.find(product=>product.category===category)||matches.find(product=>product.name==='Tráfego Pago')||matches[0];
+}
+
+export function matchInterest(text:string):ProductInterest|null{
+  return resolveProductInterests(text)[0]||null;
 }

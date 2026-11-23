@@ -13,6 +13,13 @@
   .lead-form .brand{font-family:Oswald,sans-serif;color:var(--orange);font-size:18px;letter-spacing:.5px;margin-bottom:18px}
   .lead-form [aria-live]{min-height:20px}
   .lead-form .honeypot{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+  .service-options{display:grid;grid-template-columns:1fr;gap:10px}
+  .service-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .service-group b{grid-column:1/-1}
+  .service-option{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+  .service-option input{accent-color:var(--orange)}
+  #otherServiceField[hidden]{display:none}
+  @media(max-width:480px){.service-group{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -25,13 +32,11 @@
     <label class="field"><span>Seu nome</span><input class="input" name="contact_name" maxlength="120" autocomplete="name"></label>
     <label class="field"><span>WhatsApp</span><input class="input" name="phone" maxlength="40" autocomplete="tel"></label>
     <label class="field"><span>Email</span><input class="input" name="email" type="email" maxlength="200" autocomplete="email"></label>
-    <label class="field"><span>Como podemos ajudar?</span><select class="input" name="interest">
-      <option value="">Escolha o que você procura…</option>
-      <optgroup label="Gestão de marketing"><option value="ADS PRO">Gestão de tráfego pago (ADS PRO)</option><option value="ADS PRO + SOCIAL MEDIA">Tráfego pago + redes sociais</option>
-        <option value="SMART BUSINESS">Smart Business</option><option value="TRÁFEGO LIGHT">Tráfego Light</option><option value="SOCIAL MEDIA">Gestão de redes sociais</option></optgroup>
-      <optgroup label="Projetos"><option value="Website institucional">Website institucional</option><option value="Landing page">Landing page</option><option value="E-commerce">Loja virtual (e-commerce)</option>
-        <option value="Blog">Blog</option><option value="Web banner">Web banner</option><option value="Banner impresso">Banner impresso</option><option value="Identidade visual">Identidade visual / logo</option><option value="Material gráfico">Material gráfico</option></optgroup>
-      <option value="Outro">Outro assunto</option></select></label>
+    <fieldset class="field" style="border:0;padding:0;margin:0">
+      <legend style="font-size:13px;font-weight:600;margin-bottom:6px">Quais serviços interessam? <small class="muted">(pode selecionar mais de um)</small></legend>
+      <div id="serviceOptions" class="service-options" aria-live="polite">Carregando serviços…</div>
+      <label class="field" id="otherServiceField" hidden style="margin-top:10px"><span>Qual outro serviço?</span><input class="input" name="other_service" maxlength="120" placeholder="Descreva, se quiser"></label>
+    </fieldset>
     <label class="honeypot" aria-hidden="true">Site<input name="website" tabindex="-1" autocomplete="off"></label>
     <p id="formMessage" class="small" aria-live="polite"></p>
     <button class="btn btn-primary" type="submit">Enviar contato</button>
@@ -39,14 +44,31 @@
 </main>
 <script>
 const form=document.getElementById('leadForm'),message=document.getElementById('formMessage');
+const options=document.getElementById('serviceOptions'),submitButton=form.querySelector('button[type=submit]');
+const escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+async function loadServices(){
+  const response=await fetch('/api/leads/intake'),result=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(result.error||'Não foi possível carregar os serviços.');
+  const labels={gestao:'Gestão e tráfego',projeto:'Sites, e-commerce e branding',outro:'Outros serviços'};
+  options.innerHTML=Object.entries(result.catalog||{}).map(([category,names])=>names.length?`<div class="service-group"><b class="small muted">${labels[category]||category}</b>${names.map(name=>`<label class="service-option"><input type="checkbox" name="service" value="${escapeHtml(name)}" data-category="${escapeHtml(category)}">${escapeHtml(name)}</label>`).join('')}</div>`:'').join('');
+  if(!options.querySelector('[name=service]'))throw new Error('O catálogo de serviços está vazio.');
+  options.onchange=()=>{
+    const field=document.getElementById('otherServiceField'),selected=!!options.querySelector('[name=service][value="Outros serviços"]:checked');
+    field.hidden=!selected;if(!selected)field.querySelector('input').value='';
+  };
+  submitButton.disabled=false;
+}
+loadServices().catch(error=>{options.textContent=error.message;message.textContent=error.message;message.className='small';});
 form.addEventListener('submit',async event=>{
   event.preventDefault();message.textContent='Enviando...';message.className='small muted';
   const body=Object.fromEntries(new FormData(form));
+  body.products=[...form.querySelectorAll('[name=service]:checked')].map(input=>({name:input.value,category:input.dataset.category}));
+  body.interest=body.products.map(product=>product.name).join(', ');
   try{
     const response=await fetch('/api/leads/intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(result.error||'Não foi possível enviar. Tente novamente.');
-    form.reset();message.textContent='Recebemos seus dados. Em breve entraremos em contato.';message.className='small';
+    form.reset();document.getElementById('otherServiceField').hidden=true;message.textContent='Recebemos seus dados. Em breve entraremos em contato.';message.className='small';
   }catch(error){message.textContent=error.message;message.className='small';}
 });
 </script>

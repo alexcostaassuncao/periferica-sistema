@@ -1,7 +1,7 @@
 import {database} from '../../../db/raw';
 import {canAccess,currentUser,sameOrigin} from '../../../lib/auth';
 import {PRODUCT_CATEGORIES,STAGES,owners} from '../../../db/crm';
-import {PRODUCT_CATALOG,matchInterest} from '../../../db/produtos';
+import {PRODUCT_CATALOG,normalizeProductInterest,resolveProductInterests} from '../../../db/produtos';
 
 // CRM comercial: leads, etapas do funil, espera e arquivados.
 const json=(d:any,s=200)=>Response.json(d,{status:s,headers:{'Cache-Control':'no-store'}});
@@ -19,16 +19,21 @@ const canViewAmounts=(req:Request)=>canAccess(req,'comercial')||canAccess(req,'g
 
 function normalizeProducts(value:unknown){
   if(!Array.isArray(value)||value.length>20)return null;
-  const products:{category:string,name:string,amount_cents:number}[]=[];
+  const products=new Map<string,{category:string,name:string,amount_cents:number}>();
   for(const item of value){
-    if(!item||typeof item!=='object')return null;
-    const category=String((item as any).category||'outro');
-    const name=String((item as any).name||'').trim().slice(0,120);
-    const amount=Number((item as any).amount_cents);
-    if(!PRODUCT_CATEGORIES.includes(category as any)||name.length<1||!Number.isSafeInteger(amount)||amount<0||amount>100000000000)return null;
-    products.push({category,name,amount_cents:amount});
+    if(typeof item!=='string'&&(!item||typeof item!=='object'))return null;
+    const rawName=typeof item==='string'?item:String((item as any).name||'');
+    const name=rawName.trim().slice(0,120);
+    const rawCategory=typeof item==='string'?undefined:(item as any).category;
+    if(rawCategory!==undefined&&!PRODUCT_CATEGORIES.includes(String(rawCategory) as any))return null;
+    const service=normalizeProductInterest(name,rawCategory===undefined?undefined:String(rawCategory));
+    const amount=typeof item==='string'?0:Number((item as any).amount_cents??0);
+    if(!service||!Number.isSafeInteger(amount)||amount<0||amount>100000000000)return null;
+    const existing=products.get(service.name),total=(existing?.amount_cents||0)+amount;
+    if(total>100000000000)return null;
+    products.set(service.name,{...service,amount_cents:total});
   }
-  return products;
+  return [...products.values()];
 }
 
 const productSnapshot=(products:any[])=>products.map(({category,name,amount_cents})=>({category,name,amount_cents:Number(amount_cents)||0}));
@@ -71,7 +76,19 @@ export async function POST(req:Request){
   if(!Number.isFinite(conversionAt))return json({error:'Data da conversão inválida.'},400);
   if(p.attribution_method!==undefined&&!METHODS.includes(p.attribution_method))return json({error:'Método de identificação inválido.'},400);
   if(p.lead_source!==undefined&&!CHANNELS.includes(p.lead_source))return json({error:'Canal de entrada inválido.'},400);
-  const v=(k:string)=>String(p[k]||'').trim().slice(0,FIELDS[k]);
+  const rawInterest=p.interest??p.interests??'';
+  const interestText=Array.isArray(rawInterest)?rawInterest.map((value:any)=>typeof value==='string'?value:String(value?.name||'')).filter(Boolean).join(', '):String(rawInterest||'');
+  const v=(k:string)=>String(k==='interest'?interestText:p[k]||'').trim().slice(0,FIELDS[k]);
+  if(p.products!==undefined&&!Array.isArray(p.products))return json({error:'A lista de produtos é inválida.'},400);
+  const selectedProducts=p.products===undefined?[]:normalizeProducts(p.products.map((item:any)=>typeof item==='string'?item:{...item,amount_cents:0}));
+  if(p.products!==undefined&&!selectedProducts)return json({error:'Revise os produtos ou serviços selecionados.'},400);
+  const interestInputs=[p.products,p.interests,rawInterest].flatMap(value=>value===undefined?[]:Array.isArray(value)?value:[value]);
+  const inferredProducts=resolveProductInterests([...interestInputs,
+    ...(String(p.other_service||'').trim()?['Outros serviços']:[])]);
+  const initialProducts=normalizeProducts([...(selectedProducts||[]),...inferredProducts]);
+  if(!initialProducts)return json({error:'Revise os produtos ou serviços selecionados.'},400);
+  const interestValue=[v('interest')||initialProducts.map(product=>product.name).join(', '),String(p.other_service||'').trim()]
+    .filter(Boolean).join(': ').slice(0,FIELDS.interest);
   const db=database(),code=String(p.reference_code||p.campaign_code||'').trim();
   let reference:any=null;
   if(code){
@@ -95,14 +112,11 @@ export async function POST(req:Request){
     created_at,updated_at,utm_source,utm_medium,utm_campaign,utm_content,utm_term,gclid,fbclid,lead_source,platform,campaign_name,
     ad_name,reference_code,attribution_method,conversion_at,attribution_raw)
     VALUES (?,?,?,?,?,?,?,?,?,?,'andamento',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,company,v('segment'),attributionValues.source,
-    v('contact_name'),v('phone'),v('email'),v('interest'),v('notes'),INITIAL_STAGES.includes(p.stage)?p.stage:'novo',p.owner_id||null,now,now,
+    v('contact_name'),v('phone'),v('email'),interestValue,v('notes'),INITIAL_STAGES.includes(p.stage)?p.stage:'novo',p.owner_id||null,now,now,
     attributionValues.utm_source,attributionValues.utm_medium,attributionValues.utm_campaign,attributionValues.utm_content,attributionValues.utm_term,
     attributionValues.gclid,attributionValues.fbclid,attributionValues.lead_source,attributionValues.platform,attributionValues.campaign_name,
     attributionValues.ad_name,attributionValues.reference_code,attributionValues.attribution_method,conversionAt,raw)];
-  // Produtos escolhidos no cadastro (sem valor: o valor entra depois, na proposta). Sem escolha, reconhece pelo interesse.
-  const chosen=normalizeProducts(Array.isArray(p.products)?p.products.map((x:any)=>({...x,amount_cents:0})):[])||[];
-  const guess=matchInterest(v('interest'));
-  const initialProducts=chosen.length?chosen:guess?[{...guess,amount_cents:0}]:[];
+  // Produtos selecionados ou reconhecidos pelo texto de interesse usam o mesmo catálogo.
   initialProducts.forEach((product,position)=>operations.push(db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
       VALUES(?,?,?,?,0,?,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,position,now,now)));
   const user=currentUser(req);

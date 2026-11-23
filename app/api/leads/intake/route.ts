@@ -1,10 +1,14 @@
 import {database} from '../../../../db/raw';
-import {matchInterest} from '../../../../db/produtos';
+import {PRODUCT_CATALOG,resolveProductInterests} from '../../../../db/produtos';
 
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const ATTRIBUTION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'] as const;
 
 function text(value:unknown,max=500){return String(value??'').trim().slice(0,max);}
+
+export async function GET(){
+  return json({catalog:PRODUCT_CATALOG});
+}
 
 function validOrigin(req:Request){
   const origin=req.headers.get('origin'),host=req.headers.get('x-forwarded-host')||req.headers.get('host');
@@ -37,6 +41,12 @@ export async function POST(req:Request){
   const company=text(p.company,120),contact=text(p.contact_name,120),phone=text(p.phone,40),email=text(p.email,200);
   if(company.length<2||(!phone&&!email))return json({error:'Informe a empresa e ao menos um meio de contato.'},400);
   if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:'Informe um email válido.'},400);
+  if(p.products!==undefined&&(!Array.isArray(p.products)||p.products.length>20||
+    p.products.some((item:unknown)=>typeof item!=='string'&&(!item||typeof item!=='object'||typeof (item as any).name!=='string'))))
+    return json({error:'A seleção de produtos ou serviços é inválida.'},400);
+  if(p.interests!==undefined&&(!Array.isArray(p.interests)||p.interests.length>20||
+    p.interests.some((item:unknown)=>typeof item!=='string'&&(!item||typeof item!=='object'||typeof (item as any).name!=='string'))))
+    return json({error:'A seleção de produtos ou serviços é inválida.'},400);
 
   const now=Date.now(),windowStart=now-60*60*1000,key=await requestKey(req),db=database();
   await db.prepare(`INSERT INTO lead_intake_limits(ip_hash,window_start,count) VALUES(?,?,1)
@@ -48,7 +58,13 @@ export async function POST(req:Request){
   if((limit?.count||0)>8)return json({error:'Limite de envios atingido. Tente novamente mais tarde.'},429);
 
   const attribution=readAttribution(req);
-  const id=crypto.randomUUID(),product=matchInterest(text(p.interest,120));
+  const productInputs=[p.products,p.interests,p.interest].flatMap(value=>value===undefined?[]:Array.isArray(value)?value:[value]);
+  const products=resolveProductInterests([...productInputs,
+    ...(text(p.other_service,120)?['Outros serviços']:[])]);
+  const rawInterest=p.interest??p.interests??products.map(product=>product.name);
+  const interestText=Array.isArray(rawInterest)?rawInterest.map((value:any)=>typeof value==='string'?value:text(value?.name,120)).filter(Boolean).join(', '):text(rawInterest,120);
+  const interest=[interestText,text(p.other_service,120)].filter(Boolean).join(': ').slice(0,120);
+  const id=crypto.randomUUID();
   const attributionValues={source:'Site',lead_source:'form',platform:attribution.utm_source||'',
     campaign_name:attribution.utm_campaign||'',ad_name:attribution.utm_content||'',attribution_method:'automatic',
     conversion_at:String(now),...attribution};
@@ -57,7 +73,7 @@ export async function POST(req:Request){
     created_at,updated_at,lead_source,platform,campaign_name,ad_name,attribution_method,
     conversion_at,attribution_raw,utm_source,utm_medium,utm_campaign,utm_content,utm_term,gclid,fbclid
   ) VALUES(?,?,?,'Site',?,?,?,?,'','novo','andamento',?,?, 'form',?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .bind(id,company,text(p.segment,80),contact,phone,email,text(p.interest,120),now,now,
+    .bind(id,company,text(p.segment,80),contact,phone,email,interest,now,now,
       attribution.utm_source||'',attribution.utm_campaign||'',attribution.utm_content||'',
       'automatic',now,JSON.stringify(attribution),
       attribution.utm_source||'',attribution.utm_medium||'',attribution.utm_campaign||'',
@@ -66,8 +82,7 @@ export async function POST(req:Request){
       VALUES(?,?,'','novo','form','Formulário do site',?)`).bind(crypto.randomUUID(),id,now),
     db.prepare(`INSERT INTO lead_attribution_history(id,lead_id,changed_by,changed_by_name,old_data,new_data,created_at)
       VALUES(?,?,'form','Formulário do site','{}',?,?)`).bind(crypto.randomUUID(),id,JSON.stringify(attributionValues),now),
-    // O que o lead escolheu vira produto da oportunidade, já reconhecido no catálogo (sem valor: entra na proposta).
-    ...(product?[db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
-      VALUES(?,?,?,?,0,0,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,now,now)]:[])]);
+    ...products.map((product,position)=>db.prepare(`INSERT INTO lead_products(id,lead_id,category,name,amount_cents,position,created_at,updated_at)
+      VALUES(?,?,?,?,0,?,?,?)`).bind(crypto.randomUUID(),id,product.category,product.name,position,now,now))]);
   return json({ok:true});
 }
