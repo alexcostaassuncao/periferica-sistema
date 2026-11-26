@@ -96,3 +96,11 @@ A configuração da mensagem automática e o envio do evento dependem do provedo
 
 ## Próximas redes
 YouTube e LinkedIn entram como novos valores de `network` em `social_accounts`, com um adaptador novo em `db/publish.ts`.
+
+## Google Calendar da equipe
+
+1. Ative a Google Calendar API no projeto do Google Cloud e configure um cliente OAuth. Autorize o acesso offline com a conta da equipe usando o escopo `https://www.googleapis.com/auth/calendar.events`. Veja a [documentação de OAuth do Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline).
+2. Configure `GOOGLE_CALENDAR_ID` com o ID do calendário compartilhado e adicione `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET` e `GOOGLE_CALENDAR_REFRESH_TOKEN` ao ambiente do servidor. A conta autorizada precisa poder editar o calendário.
+3. Na Agenda, abra uma reunião salva e clique em **Enviar ao Google Calendar**. Reenviar após editar atualiza o mesmo evento. Para cancelar, use **Remover do Google Calendar** antes de cancelar a reunião na Agenda.
+
+Os envios são feitos sob demanda, no fuso de São Paulo. O evento contém título, horário, local ou link da reunião. A integração não importa eventos externos nem envia convites.

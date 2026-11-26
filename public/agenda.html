@@ -76,7 +76,7 @@ function render(){
   content.querySelector('#prev').onclick=()=>{cur=new Date(y,m-1,1);load();};
   content.querySelector('#next').onclick=()=>{cur=new Date(y,m+1,1);load();};
   content.querySelector('#today').onclick=()=>{cur=new Date();cur.setDate(1);load();};
-  content.querySelectorAll('[data-ev]').forEach(e=>e.onclick=async ev=>{ev.stopPropagation();try{const r=await PF.api('/api/meetings?id='+e.dataset.ev);PF.Reuniao.form(r.meeting,{onDone:load});}catch(x){PF.toast(x.message,'err');}});
+  content.querySelectorAll('[data-ev]').forEach(e=>e.onclick=async ev=>{ev.stopPropagation();try{const r=await PF.api('/api/meetings?id='+e.dataset.ev);PF.Reuniao.form(r.meeting,{onDone:load,googleCalendar:r.googleCalendar});}catch(x){PF.toast(x.message,'err');}});
   content.querySelectorAll('[data-ata]').forEach(e=>e.onclick=()=>PF.Reuniao.ata(e.dataset.ata,{onDone:load}));
   content.querySelectorAll('[data-day]').forEach(d=>d.onclick=()=>PF.Reuniao.form({date:d.dataset.day,participants:PF.user.id?[PF.user.id]:[]},{onDone:load}));
 }

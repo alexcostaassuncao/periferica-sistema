@@ -3,6 +3,7 @@ import {canAccess,currentUser,sameOrigin} from '../../../lib/auth';
 import {logEvent} from '../../../db/clientes';
 import {cleanUrl,type U} from '../../../db/tarefas';
 import {mailReady,sendMail} from '../../../lib/mail';
+import {googleCalendarConfigured,writeGoogleCalendarMeeting} from '../../../lib/google-calendar';
 
 // Reuniões: o mesmo registro aparece na Agenda, na Gestão do cliente e no histórico do cliente.
 const json=(d:any,s=200)=>Response.json(d,{status:s,headers:{'Cache-Control':'no-store'}});
@@ -42,7 +43,7 @@ export async function GET(req:Request){
     if(!m)return json({error:'Reunião não encontrada.'},404);
     const files=(await db.prepare('SELECT * FROM meeting_files WHERE meeting_id=? ORDER BY created_at').bind(id).all()).results;
     const tasks=(await db.prepare('SELECT id,title,stage FROM tasks WHERE meeting_id=?').bind(id).all()).results;
-    return json({meeting:{...m,participants:JSON.parse(m.participants||'[]')},files,tasks});
+    return json({meeting:{...m,participants:JSON.parse(m.participants||'[]')},files,tasks,googleCalendar:googleCalendarConfigured()});
   }
   const where=[v.sql],args=[...v.args];
   if(q.get('from')){where.push('m.date>=?');args.push(q.get('from')!);}
@@ -123,6 +124,16 @@ export async function PATCH(req:Request){
   const v=vis(u);
   const m:any=await db.prepare(`SELECT m.*,c.name AS client_name,c.email AS client_email,c.phone AS client_phone FROM meetings m LEFT JOIN clients c ON c.id=m.client_id WHERE m.id=? AND ${v.sql}`).bind(p.id,...v.args).first();
   if(!m)return json({error:'Reunião não encontrada.'},404);
+  if(p.action==='google_calendar_publish'||p.action==='google_calendar_remove'){
+    if(!googleCalendarConfigured())return json({error:'O calendário da equipe ainda não foi configurado.'},503);
+    try{
+      await writeGoogleCalendarMeeting(m,p.action==='google_calendar_remove');
+      return json({ok:true});
+    }catch(error){
+      console.error('Google Calendar:',error instanceof Error?error.message:'Falha na integração');
+      return json({error:'Não foi possível atualizar o Google Calendar. Tente novamente.'},502);
+    }
+  }
   if(p.action==='minutes'){
     await db.prepare('UPDATE meetings SET minutes_text=?,minutes_summary=?,minutes_updated_by=?,minutes_updated_at=?,updated_at=? WHERE id=?')
       .bind(s(p.minutes_text,40000),s(p.minutes_summary,6000),u.name,now,now,m.id).run();

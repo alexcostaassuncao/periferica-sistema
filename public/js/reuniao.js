@@ -9,7 +9,7 @@
   const getPeople=async()=>people||(people=(await PF.api('/api/people')).people);
   const getClients=async()=>clients||(clients=(await PF.api('/api/clients')).clients);
 
-  async function form(mt={},{onDone}={}){
+  async function form(mt={},{onDone,googleCalendar}={}){
     const [ps,cs]=await Promise.all([getPeople().catch(()=>[]),mt.lead_id?[]:getClients().catch(()=>[])]);
     let parts=[...(mt.participants||[])];
     const hoje=new Date().toISOString().slice(0,10);
@@ -29,6 +29,27 @@
         <label class="field"><span>Descrição / pauta</span><textarea class="input" name="description" style="min-height:70px">${esc(mt.description||'')}</textarea></label>
         <div class="modal-foot">${mt.id?'<button type="button" class="btn btn-ghost" id="del" style="margin-right:auto"><i data-lucide="trash-2"></i>Cancelar reunião</button>':''}<button type="button" class="btn btn-ghost" data-close>Fechar</button><button class="btn btn-primary" id="save"><i data-lucide="save"></i>Salvar</button></div>
       </form>`,{side:true});
+    if(mt.id&&googleCalendar!==undefined){
+      const calendar=document.createElement('div');
+      calendar.className='stack';
+      calendar.innerHTML=googleCalendar
+        ?`<div class="row wrap"><button type="button" class="btn btn-ghost btn-sm" data-calendar="google_calendar_publish">Enviar ao Google Calendar</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-calendar="google_calendar_remove">Remover do Google Calendar</button></div>
+          <p class="muted small">Salve alterações na Agenda antes de reenviar ao calendário da equipe.</p>`
+        :'<p class="muted small">Google Calendar aguardando configuração.</p>';
+      m.el.querySelector('.modal-foot').before(calendar);
+      const buttons=[...calendar.querySelectorAll('[data-calendar]')];
+      buttons.forEach(button=>button.onclick=async()=>{
+        const remove=button.dataset.calendar==='google_calendar_remove';
+        if(remove&&!await PF.confirm('Remover esta reunião do calendário da equipe?'))return;
+        buttons.forEach(item=>item.disabled=true);
+        try{
+          await PF.api('/api/meetings',{method:'PATCH',body:{id:mt.id,action:button.dataset.calendar}});
+          PF.toast(remove?'Removida do Google Calendar.':'Reunião enviada ao Google Calendar.','ok');
+        }catch(error){PF.toast(error.message,'err');}
+        finally{buttons.forEach(item=>item.disabled=false);}
+      });
+    }
     const F=m.el.querySelector('#f').elements;
     const drawParts=()=>{m.el.querySelector('#parts').innerHTML=parts.map(id=>{const p=ps.find(x=>x.id===id);return `<span class="badge b-gray" style="padding:5px 8px">${esc(p?p.name:'?')} <button type="button" data-rm="${id}" style="margin-left:4px;color:var(--muted)">×</button></span>`;}).join('')||'<span class="muted small">Ninguém adicionado.</span>';
       m.el.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{parts=parts.filter(x=>x!==b.dataset.rm);drawParts();});};
